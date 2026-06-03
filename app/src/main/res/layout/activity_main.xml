@@ -34,7 +34,7 @@
         android:id="@+id/splashOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#0F0F0F"
+        android:background="@drawable/bg_red_gradient"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -47,12 +47,12 @@
             android:gravity="center"
             android:orientation="vertical">
 
-            <!-- Logo representation (Usa el nuevo ic_app_icon circular) -->
+            <!-- Logo representation (Usa el nuevo ic_3d_play circular y tridimensional) -->
             <ImageView
                 android:id="@+id/splashLogo"
-                android:layout_width="96dp"
-                android:layout_height="96dp"
-                android:src="@drawable/ic_app_icon" />
+                android:layout_width="110dp"
+                android:layout_height="110dp"
+                android:src="@drawable/ic_3d_play" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -60,7 +60,7 @@
                 android:layout_marginTop="16dp"
                 android:text="YouTube Shield"
                 android:textColor="@color/white"
-                android:textSize="22sp"
+                android:textSize="24sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -68,7 +68,8 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
                 android:text="Bucle sin fin &amp; Sin anuncios"
-                android:textColor="#8E8E8E"
+                android:textColor="@color/white"
+                android:alpha="0.9"
                 android:textSize="14sp" />
 
             <ProgressBar

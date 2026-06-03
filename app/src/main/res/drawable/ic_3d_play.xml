@@ -1,0 +1,51 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+
+  <!-- 1. Sombra exterior del botón circular -->
+  <path
+      android:fillColor="#30000000"
+      android:pathData="M60,62m-42,0a42,42 0,1 1,84 0a42,42 0,1 1,-84 0"/>
+
+  <!-- 2. Lateral de extrusión 3D del círculo (cuerpo del botón) -->
+  <path
+      android:fillColor="#E0E0E0"
+      android:pathData="M60,61m-40,0a40,40 0,1 1,80 0a40,40 0,1 1,-80 0"/>
+
+  <!-- 3. Cara frontal del botón circular -->
+  <path
+      android:fillColor="#FFFFFF"
+      android:pathData="M60,59m-40,0a40,40 0,1 1,80 0a40,40 0,1 1,-80 0"/>
+
+  <!-- 4. Sombra interior para dar efecto biselado al botón circular -->
+  <path
+      android:fillColor="#F6F6F6"
+      android:pathData="M60,59m-37,0a37,37 0,1 1,74 0a37,37 0,1 1,-74 0"/>
+
+  <!-- 5. Sombra de la extrusión 3D del triángulo de Play -->
+  <path
+      android:fillColor="#25000000"
+      android:pathData="M57,48 L57,84 L85,66 Z"/>
+
+  <!-- 6. Extrusión lateral izquierda del triángulo de Play -->
+  <path
+      android:fillColor="#CCCCCC"
+      android:pathData="M51,42 L55,46 L55,82 L51,78 Z"/>
+
+  <!-- 7. Extrusión lateral inferior-derecha del triángulo de Play -->
+  <path
+      android:fillColor="#B8B8B8"
+      android:pathData="M51,78 L55,82 L83,64 L79,60 Z"/>
+
+  <!-- 8. Extrusión lateral superior-derecha del triángulo de Play -->
+  <path
+      android:fillColor="#EAEAEA"
+      android:pathData="M51,42 L55,46 L83,64 L79,60 Z"/>
+
+  <!-- 9. Cara frontal del triángulo de Play -->
+  <path
+      android:fillColor="#FFFFFF"
+      android:pathData="M51,42 L51,78 L79,60 Z"/>
+</vector>
