@@ -48,6 +48,9 @@ class MainActivity : AppCompatActivity() {
     private var currentThumbnail: Bitmap? = null
     private var loadedThumbnailVideoId: String? = null
 
+    // Extractor de colores dinámicos
+    private lateinit var colorExtractor: DynamicColorExtractor
+
     private val serviceConnection = object : android.content.ServiceConnection {
         override fun onServiceConnected(name: android.content.ComponentName?, service: android.os.IBinder?) {
             val binder = service as MediaPlaybackService.LocalBinder
@@ -88,6 +91,9 @@ class MainActivity : AppCompatActivity() {
 
         // Inicializar base de datos de AdBlocker
         AdBlocker.init(this)
+
+        // Inicializar extractor de colores dinámicos
+        colorExtractor = DynamicColorExtractor()
 
         // Cargar preferencia del escudo
         val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
@@ -191,7 +197,7 @@ class MainActivity : AppCompatActivity() {
                             return $isLoopEnabled;
                         })()
                     """.trimIndent()
-                    webView.evaluateJavascript(js) { value ->
+                    webView.evaluateJavascript(js) { _ ->
                         Toast.makeText(
                             this@MainActivity,
                             if (isLoopEnabled) "Repetir canción: ACTIVADO" else "Repetir canción: DESACTIVADO",
@@ -282,11 +288,11 @@ class MainActivity : AppCompatActivity() {
                         cleanResult = cleanResult.replace("\\\"", "\"")
                         cleanResult = cleanResult.replace("\\\\", "\\")
                     }
-                    
+
                     val json = org.json.JSONObject(cleanResult)
                     val title = json.optString("title", "YouTube Shield")
                     val isPlaying = json.optBoolean("isPlaying", false)
-                    
+
                     playbackService?.updateMetadata(title, isPlaying, isLoopEnabled, currentThumbnail)
                 } catch (e: Exception) {
                     // Ignorar errores de parsing
@@ -307,6 +313,16 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     if (loadedThumbnailVideoId == videoId) {
                         currentThumbnail = bitmap
+
+                        // Extraer color dominante y enviarlo al servicio si está enlazado
+                        try {
+                            if (bitmap != null && isBound && playbackService != null) {
+                                val dominantColor = colorExtractor.extractDominantColor(bitmap)
+                                playbackService?.setNotificationColor(dominantColor)
+                            }
+                        } catch (e: Exception) {
+                            // No bloquear si falla la extracción
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -321,9 +337,19 @@ class MainActivity : AppCompatActivity() {
                     runOnUiThread {
                         if (loadedThumbnailVideoId == videoId) {
                             currentThumbnail = bitmap
+
+                            // Extraer color dominante y enviarlo al servicio si está enlazado
+                            try {
+                                if (bitmap != null && isBound && playbackService != null) {
+                                    val dominantColor = colorExtractor.extractDominantColor(bitmap)
+                                    playbackService?.setNotificationColor(dominantColor)
+                                }
+                            } catch (e2: Exception) {
+                                // Ignorar
+                            }
                         }
                     }
-                } catch (e2: Exception) {
+                }) {
                     // Ignorar
                 }
             }
@@ -546,7 +572,7 @@ class MainActivity : AppCompatActivity() {
 
                 // 2. Función omitidora principal y auto-desmuteado
                 var skipAds = function() {
-                    var skipButtons = document.querySelectorAll('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-slot, .ytp-ad-skip-button-container, [class*="skip-button"]');
+                    var skipButtons = document.querySelectorAll('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-slot, .ytp-ad-skip-button-container, [class*=\"skip-button\"]');
                     skipButtons.forEach(function(btn) {
                         if (btn) {
                             btn.click();
@@ -579,7 +605,7 @@ class MainActivity : AppCompatActivity() {
 
                     // Forzar click en el botón de desmutear/activar sonido de YouTube si está silenciado
                     if (!isAdPlaying) {
-                        var unmuteBtns = document.querySelectorAll('.ytp-unmute, .ytp-unmute-box, .ytm-mute-button, [class*="unmute"], [aria-label*="unmute"], [aria-label*="Unmute"]');
+                        var unmuteBtns = document.querySelectorAll('.ytp-unmute, .ytp-unmute-box, .ytm-mute-button, [class*=\"unmute\"], [aria-label*=\"unmute\"], [aria-label*=\"Unmute\"]');
                         unmuteBtns.forEach(function(btn) {
                             if (btn) {
                                 var label = (btn.getAttribute('aria-label') || btn.innerText || btn.className || "").toLowerCase();
@@ -743,9 +769,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onBackPressed() {
         if (customView != null) {
-            hideCustomView()
-        } else if (webView.canGoBack()) {
-            webView.goBack()
+            hideCustomView())            webView.goBack()
         } else {
             super.onBackPressed()
         }
