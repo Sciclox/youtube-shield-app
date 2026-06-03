@@ -20,6 +20,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import android.graphics.ImageDecoder
+import android.graphics.drawable.AnimatedImageDrawable
+import android.widget.ImageView
 import java.io.ByteArrayInputStream
 
 class MainActivity : AppCompatActivity() {
@@ -125,6 +128,7 @@ class MainActivity : AppCompatActivity() {
         // Iniciar los runnables periódicos
         adBlockHandler.post(adBlockRunnable)
         adBlockHandler.post(playbackMonitorRunnable)
+        setupSplashGif()
     }
 
     private fun checkNotificationPermission() {
@@ -135,6 +139,57 @@ class MainActivity : AppCompatActivity() {
                     arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
                     NOTIFICATION_PERMISSION_CODE
                 )
+            }
+        }
+    }
+
+    private fun setupSplashGif() {
+        val splashLogo = findViewById<ImageView>(R.id.splashLogo) ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            try {
+                val source = ImageDecoder.createSource(assets, "ytsplash.gif")
+                val drawable = ImageDecoder.decodeDrawable(source)
+                splashLogo.setImageDrawable(drawable)
+                if (drawable is AnimatedImageDrawable) {
+                    drawable.start()
+                }
+            } catch (e: Exception) {
+                splashLogo.setImageResource(R.drawable.ic_youtube_logo)
+            }
+        } else {
+            try {
+                val layout = splashLogo.parent as? android.view.ViewGroup
+                if (layout != null) {
+                    val index = layout.indexOfChild(splashLogo)
+                    val lp = splashLogo.layoutParams
+                    
+                    val webViewGif = WebView(this).apply {
+                        layoutParams = lp
+                        setBackgroundColor(0x00000000)
+                        settings.allowFileAccess = true
+                    }
+                    
+                    layout.removeView(splashLogo)
+                    layout.addView(webViewGif, index)
+                    
+                    val html = """
+                        <html>
+                        <head>
+                        <style>
+                            body { margin: 0; padding: 0; background: #0F0F0F; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+                            img { width: 100%; height: 100%; object-fit: contain; }
+                        </style>
+                        </head>
+                        <body>
+                            <img src="ytsplash.gif" />
+                        </body>
+                        </html>
+                    """.trimIndent()
+                    
+                    webViewGif.loadDataWithBaseURL("file:///android_asset/", html, "text/html", "utf-8", null)
+                }
+            } catch (e: Exception) {
+                splashLogo.setImageResource(R.drawable.ic_youtube_logo)
             }
         }
     }

@@ -47,11 +47,12 @@
             android:gravity="center"
             android:orientation="vertical">
 
-            <!-- Logo oficial de YouTube en el centro -->
+            <!-- Logo oficial de YouTube en el centro (admite GIF animado y logo estático) -->
             <ImageView
                 android:id="@+id/splashLogo"
-                android:layout_width="160dp"
-                android:layout_height="160dp"
+                android:layout_width="240dp"
+                android:layout_height="240dp"
+                android:scaleType="fitCenter"
                 android:src="@drawable/ic_youtube_logo" />
 
             <ProgressBar
