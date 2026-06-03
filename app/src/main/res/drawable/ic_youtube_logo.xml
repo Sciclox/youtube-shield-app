@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+
+  <!-- Fondo Rojo YouTube (Rectángulo Redondeado Oficial) -->
+  <path
+      android:fillColor="#FF0000"
+      android:pathData="M24,38h72c6.6,0 12,5.4 12,12v20c0,6.6 -5.4,12 -12,12h-72c-6.6,0 -12,-5.4 -12,-12v-20c0,-6.6 5.4,-12 12,-12z" />
+
+  <!-- Triángulo de Reproducción Blanco en el Centro -->
+  <path
+      android:fillColor="#FFFFFF"
+      android:pathData="M52,47.5l20,12.5l-20,12.5z" />
+
+</vector>

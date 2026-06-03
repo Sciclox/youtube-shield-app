@@ -194,6 +194,18 @@ class MainActivity : AppCompatActivity() {
                             if (v) {
                                 v.loop = $isLoopEnabled;
                             }
+                            var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                            if (player) {
+                                try {
+                                    if (typeof player.setLoop === 'function') player.setLoop($isLoopEnabled);
+                                } catch(e){}
+                                try {
+                                    if (typeof player.setOption === 'function') player.setOption('loop', $isLoopEnabled);
+                                } catch(e){}
+                                try {
+                                    if (typeof player.setOption === 'function') player.setOption('playlist', 'loop', $isLoopEnabled);
+                                } catch(e){}
+                            }
                             return $isLoopEnabled;
                         })()
                     """.trimIndent()
@@ -632,8 +644,34 @@ class MainActivity : AppCompatActivity() {
                                 video.volume = 1.0;
                                 console.log('Shield: Video auto-desmuteado.');
                             }
-                            if (window.shieldLoopEnabled && !video.loop) {
-                                video.loop = true;
+                            if (window.shieldLoopEnabled) {
+                                if (!video.loop) video.loop = true;
+                                var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                                if (player) {
+                                    try {
+                                        if (typeof player.setLoop === 'function') player.setLoop(true);
+                                    } catch(e){}
+                                    try {
+                                        if (typeof player.setOption === 'function') player.setOption('loop', true);
+                                    } catch(e){}
+                                    try {
+                                        if (typeof player.setOption === 'function') player.setOption('playlist', 'loop', true);
+                                    } catch(e){}
+                                }
+                            } else {
+                                if (video.loop) video.loop = false;
+                                var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                                if (player) {
+                                    try {
+                                        if (typeof player.setLoop === 'function') player.setLoop(false);
+                                    } catch(e){}
+                                    try {
+                                        if (typeof player.setOption === 'function') player.setOption('loop', false);
+                                    } catch(e){}
+                                    try {
+                                        if (typeof player.setOption === 'function') player.setOption('playlist', 'loop', false);
+                                    } catch(e){}
+                                }
                             }
                         }
                     }
@@ -679,6 +717,22 @@ class MainActivity : AppCompatActivity() {
             (function() {
                 // Sincronizar estado de bucle desde Android Kotlin
                 window.shieldLoopEnabled = $isLoopEnabled;
+                var v = document.querySelector('video');
+                if (v) {
+                    v.loop = $isLoopEnabled;
+                }
+                var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                if (player) {
+                    try {
+                        if (typeof player.setLoop === 'function') player.setLoop($isLoopEnabled);
+                    } catch(e){}
+                    try {
+                        if (typeof player.setOption === 'function') player.setOption('loop', $isLoopEnabled);
+                    } catch(e){}
+                    try {
+                        if (typeof player.setOption === 'function') player.setOption('playlist', 'loop', $isLoopEnabled);
+                    } catch(e){}
+                }
 
                 // 1. Bloquear Service Workers
                 if (typeof navigator.serviceWorker !== 'undefined') {
