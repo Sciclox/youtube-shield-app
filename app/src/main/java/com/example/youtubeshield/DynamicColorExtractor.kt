@@ -6,54 +6,48 @@ import androidx.palette.graphics.Palette
 
 class DynamicColorExtractor {
     
-    /**
-     * Extrae el color dominante de un Bitmap usando Palette API
-     */
-    fun extractDominantColor(bitmap: Bitmap?): Int {
-        if (bitmap == null) return Color.BLACK
-        
-        return try {
-            val palette = Palette.from(bitmap).generate()
-            // Intentar obtener el color vibrante más prominente
-            palette.getVibrantColor(
-                palette.getDominantColor(Color.BLACK)
-            )
-        } catch (e: Exception) {
-            Color.BLACK
-        }
+/**
+ * Extrae el color dominante/representativo de un Bitmap.
+ * Devuelve un int ARGB (fallback: #FF333333).
+ */
+fun extractDominantColor(bitmap: Bitmap?): Int {
+    if (bitmap == null) return 0xFF333333.toInt()
+    return try {
+        val defaultColor = 0xFF333333.toInt()
+        val palette = Palette.from(bitmap).maximumColorCount(24).generate()
+        // Preferir vibrante si existe, sino dominante, sino fallback
+        palette.getVibrantColor(palette.getDominantColor(defaultColor))
+    } catch (e: Exception) {
+        0xFF333333.toInt()
     }
-    
-    /**
-     * Extrae una paleta completa de colores para mayor control
-     */
-    fun extractColorPalette(bitmap: Bitmap?): ColorPalette {
-        if (bitmap == null) return ColorPalette()
-        
-        return try {
-            val palette = Palette.from(bitmap).generate()
-            
-            ColorPalette(
-                dominant = palette.getDominantColor(Color.BLACK),
-                vibrant = palette.getVibrantColor(Color.BLACK),
-                darkVibrant = palette.getDarkVibrantColor(Color.BLACK),
-                lightVibrant = palette.getLightVibrantColor(Color.BLACK),
-                muted = palette.getMutedColor(Color.GRAY),
-                darkMuted = palette.getDarkMutedColor(Color.DKGRAY)
-            )
-        } catch (e: Exception) {
-            ColorPalette()
-        }
+}
+
+/**
+ * Extrae una paleta completa para usos más avanzados.
+ */
+fun extractColorPalette(bitmap: Bitmap?): ColorPalette {
+    if (bitmap == null) return ColorPalette()
+    return try {
+        val palette = Palette.from(bitmap).maximumColorCount(24).generate()
+        ColorPalette(
+            dominant = palette.getDominantColor(0xFF333333.toInt()),
+            vibrant = palette.getVibrantColor(0xFF333333.toInt()),
+            darkVibrant = palette.getDarkVibrantColor(0xFF222222.toInt()),
+            lightVibrant = palette.getLightVibrantColor(0xFFFFFFFF.toInt()),
+            muted = palette.getMutedColor(0xFF888888.toInt()),
+            darkMuted = palette.getDarkMutedColor(0xFF444444.toInt())
+        )
+    } catch (e: Exception) {
+        ColorPalette()
     }
-    
-    /**
-     * Data class que contiene la paleta de colores extraída
-     */
-    data class ColorPalette(
-        val dominant: Int = Color.BLACK,
-        val vibrant: Int = Color.BLACK,
-        val darkVibrant: Int = Color.BLACK,
-        val lightVibrant: Int = Color.WHITE,
-        val muted: Int = Color.GRAY,
-        val darkMuted: Int = Color.DKGRAY
-    )
+}
+
+data class ColorPalette(
+    val dominant: Int = 0xFF333333.toInt(),
+    val vibrant: Int = 0xFF333333.toInt(),
+    val darkVibrant: Int = 0xFF222222.toInt(),
+    val lightVibrant: Int = 0xFFFFFFFF.toInt(),
+    val muted: Int = 0xFF888888.toInt(),
+    val darkMuted: Int = 0xFF444444.toInt()
+)
 }
