@@ -31,6 +31,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnShield: ImageButton
 
     private var isShieldActive = true
+    private var isLoopEnabled = false
     private val adBlockHandler = Handler(Looper.getMainLooper())
 
     // Variables para el control de pantalla completa
@@ -177,13 +178,24 @@ class MainActivity : AppCompatActivity() {
 
             override fun onToggleLoop() {
                 runOnUiThread {
-                    webView.evaluateJavascript(
-                        "(function() { var v = document.querySelector('video'); if(v) { v.loop = !v.loop; return v.loop; } return false; })()",
-                        ValueCallback { value ->
-                            val isLooping = value?.toBoolean() ?: false
-                            Toast.makeText(this@MainActivity, if (isLooping) "Repetir canción: ACTIVADO" else "Repetir canción: DESACTIVADO", Toast.LENGTH_SHORT).show()
-                        }
-                    )
+                    isLoopEnabled = !isLoopEnabled
+                    val js = """
+                        (function() {
+                            window.shieldLoopEnabled = $isLoopEnabled;
+                            var v = document.querySelector('video');
+                            if (v) {
+                                v.loop = $isLoopEnabled;
+                            }
+                            return $isLoopEnabled;
+                        })()
+                    """.trimIndent()
+                    webView.evaluateJavascript(js) { value ->
+                        Toast.makeText(
+                            this@MainActivity,
+                            if (isLoopEnabled) "Repetir canción: ACTIVADO" else "Repetir canción: DESACTIVADO",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 }
             }
         })
@@ -225,7 +237,7 @@ class MainActivity : AppCompatActivity() {
         val js = """
             (function() {
                 var video = document.querySelector('video');
-                if (!video) return JSON.stringify({ title: "YouTube Shield", isPlaying: false, isLooping: false });
+                if (!video) return JSON.stringify({ title: "YouTube Shield", isPlaying: false });
                 
                 var title = document.title;
                 title = title.replace(/^\(\d+\)\s+/, '');
@@ -235,8 +247,7 @@ class MainActivity : AppCompatActivity() {
                 
                 return JSON.stringify({
                     title: title || "YouTube Video",
-                    isPlaying: !video.paused && !video.ended,
-                    isLooping: video.loop || false
+                    isPlaying: !video.paused && !video.ended
                 });
             })()
         """.trimIndent()
@@ -254,9 +265,8 @@ class MainActivity : AppCompatActivity() {
                     val json = org.json.JSONObject(cleanResult)
                     val title = json.optString("title", "YouTube Shield")
                     val isPlaying = json.optBoolean("isPlaying", false)
-                    val isLooping = json.optBoolean("isLooping", false)
                     
-                    playbackService?.updateMetadata(title, isPlaying, isLooping)
+                    playbackService?.updateMetadata(title, isPlaying, isLoopEnabled)
                 } catch (e: Exception) {
                     // Ignorar errores de parsing
                 }
@@ -478,7 +488,7 @@ class MainActivity : AppCompatActivity() {
                     document.head.appendChild(style);
                 }
 
-                // 2. Función omitidora principal
+                // 2. Función omitidora principal y auto-desmuteado
                 var skipAds = function() {
                     var skipButtons = document.querySelectorAll('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-slot, .ytp-ad-skip-button-container, [class*="skip-button"]');
                     skipButtons.forEach(function(btn) {
@@ -490,13 +500,39 @@ class MainActivity : AppCompatActivity() {
 
                     var video = document.querySelector('video');
                     var isAdPlaying = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay, .ytp-ad-player-overlay-layout');
-                    if (video && isAdPlaying) {
-                        video.muted = true;
-                        video.playbackRate = 16.0;
-                        if (!isNaN(video.duration) && isFinite(video.duration)) {
-                            video.currentTime = video.duration - 0.1;
+                    if (video) {
+                        if (isAdPlaying) {
+                            video.muted = true;
+                            video.playbackRate = 16.0;
+                            if (!isNaN(video.duration) && isFinite(video.duration)) {
+                                video.currentTime = video.duration - 0.1;
+                            }
+                            console.log('Shield: Anuncio omitido / acelerado.');
+                        } else {
+                            // Video normal: Asegurar volumen activado y loop si corresponde
+                            if (video.muted) {
+                                video.muted = false;
+                                video.volume = 1.0;
+                                console.log('Shield: Video auto-desmuteado.');
+                            }
+                            if (window.shieldLoopEnabled && !video.loop) {
+                                video.loop = true;
+                            }
                         }
-                        console.log('Shield: Anuncio omitido / acelerado.');
+                    }
+
+                    // Forzar click en el botón de desmutear/activar sonido de YouTube si está silenciado
+                    if (!isAdPlaying) {
+                        var unmuteBtns = document.querySelectorAll('.ytp-unmute, .ytp-unmute-box, .ytm-mute-button, [class*="unmute"], [aria-label*="unmute"], [aria-label*="Unmute"]');
+                        unmuteBtns.forEach(function(btn) {
+                            if (btn) {
+                                var label = (btn.getAttribute('aria-label') || btn.innerText || btn.className || "").toLowerCase();
+                                if (label.includes('unmute')) {
+                                    btn.click();
+                                    console.log('Shield: Click en botón de desmutear de YouTube.');
+                                }
+                            }
+                        });
                     }
                 };
 
@@ -524,6 +560,9 @@ class MainActivity : AppCompatActivity() {
     private fun injectVisibilityOverride() {
         val js = """
             (function() {
+                // Sincronizar estado de bucle desde Android Kotlin
+                window.shieldLoopEnabled = $isLoopEnabled;
+
                 // 1. Bloquear Service Workers
                 if (typeof navigator.serviceWorker !== 'undefined') {
                     try {
@@ -579,6 +618,57 @@ class MainActivity : AppCompatActivity() {
                     } catch (e) {
                         console.error('Shield: Failed to override pause', e);
                     }
+                }
+
+                // 4. Overrides para repetición de canción (loop)
+                if (!window.shieldLoopOverridden) {
+                    try {
+                        const originalLoopGet = Object.getOwnPropertyDescriptor(HTMLVideoElement.prototype, 'loop').get;
+                        const originalLoopSet = Object.getOwnPropertyDescriptor(HTMLVideoElement.prototype, 'loop').set;
+                        Object.defineProperty(HTMLVideoElement.prototype, 'loop', {
+                            get: function() {
+                                if (window.shieldLoopEnabled) return true;
+                                return originalLoopGet.call(this);
+                            },
+                            set: function(val) {
+                                if (window.shieldLoopEnabled) {
+                                    return originalLoopSet.call(this, true);
+                                }
+                                return originalLoopSet.call(this, val);
+                            },
+                            configurable: true
+                        });
+                        window.shieldLoopOverridden = true;
+                        console.log('Shield: Loop property overridden.');
+                    } catch(e) {
+                        console.error('Shield: Failed to override loop property', e);
+                    }
+                }
+
+                // 5. Interceptar evento de finalización en fase de captura para reiniciar el video
+                if (!window.shieldEndedListenerRegistered) {
+                    window.addEventListener('ended', function(e) {
+                        if (window.shieldLoopEnabled && e.target && e.target.tagName === 'VIDEO') {
+                            e.stopImmediatePropagation();
+                            e.preventDefault();
+                            var video = e.target;
+                            video.currentTime = 0;
+                            video.play().catch(function(err) {
+                                console.error('Shield loop play error', err);
+                            });
+                            console.log('Shield: Intercepted ended event and looped!');
+                        }
+                    }, true);
+                    window.shieldEndedListenerRegistered = true;
+                    console.log('Shield: Capture ended event listener registered.');
+                }
+
+                // 6. Desmutear automáticamente lo antes posible
+                var video = document.querySelector('video');
+                if (video && video.muted) {
+                    video.muted = false;
+                    video.volume = 1.0;
+                    console.log('Shield: Early video auto-unmuted.');
                 }
             })();
         """.trimIndent()

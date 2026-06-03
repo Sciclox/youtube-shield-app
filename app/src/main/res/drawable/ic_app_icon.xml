@@ -4,18 +4,20 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
   
-  <!-- Fondo Blanco de la App -->
-  <path
-      android:fillColor="#FFFFFF"
-      android:pathData="M54,54m-50,0a50,50 0,1 1,100 0a50,50 0,1 1,-100 0"/>
-
-  <!-- Rectángulo Rojo Redondeado (Logo Oficial de YouTube) -->
+  <!-- Fondo Todo Rojo Completo -->
   <path
       android:fillColor="#FF0000"
-      android:pathData="M24,34 h60 c11,0 20,9 20,20 v0 c0,11 -9,20 -20,20 h-60 c-11,0 -20,-9 -20,-20 v0 c0,-11 9,-20 20,-20 z"/>
+      android:pathData="M0,0h108v108H0z"/>
 
-  <!-- Triángulo Blanco de Play Oficial -->
+  <!-- Círculo Central con Borde Blanco -->
+  <path
+      android:strokeColor="#FFFFFF"
+      android:strokeWidth="4"
+      android:fillColor="#00000000"
+      android:pathData="M54,54m-22,0a22,22 0,1 1,44 0a22,22 0,1 1,-44 0"/>
+
+  <!-- Triángulo Blanco de Play en el Centro -->
   <path
       android:fillColor="#FFFFFF"
-      android:pathData="M46,42 v24 l20,-12 z"/>
+      android:pathData="M48,42 v24 l18,-12 z"/>
 </vector>
