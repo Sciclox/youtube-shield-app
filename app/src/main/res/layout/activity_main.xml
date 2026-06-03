@@ -34,7 +34,7 @@
         android:id="@+id/splashOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#0F0F0F"
+        android:background="#FFFFFF"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -54,12 +54,6 @@
                 android:layout_height="240dp"
                 android:scaleType="fitCenter"
                 android:src="@drawable/ic_youtube_logo" />
-
-            <ProgressBar
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:layout_marginTop="24dp"
-                android:indeterminateTint="@color/white" />
         </LinearLayout>
     </FrameLayout>
 

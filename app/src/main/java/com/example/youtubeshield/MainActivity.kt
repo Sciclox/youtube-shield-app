@@ -176,7 +176,7 @@ class MainActivity : AppCompatActivity() {
                         <html>
                         <head>
                         <style>
-                            body { margin: 0; padding: 0; background: #0F0F0F; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+                            body { margin: 0; padding: 0; background: #FFFFFF; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
                             img { width: 100%; height: 100%; object-fit: contain; }
                         </style>
                         </head>

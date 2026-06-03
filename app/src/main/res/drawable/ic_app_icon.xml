@@ -4,20 +4,20 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
   
-  <!-- Fondo Todo Rojo Completo -->
+  <!-- Fondo Todo Rojo Completo (Rojo 2 puntos más oscuro) -->
   <path
-      android:fillColor="#FF0000"
+      android:fillColor="#CC0000"
       android:pathData="M0,0h108v108H0z"/>
 
-  <!-- Círculo Central con Borde Blanco (Círculo más grande: radio 28) -->
+  <!-- Círculo Central con Borde Blanco (Círculo con radio 28) -->
   <path
       android:strokeColor="#FFFFFF"
       android:strokeWidth="4"
       android:fillColor="#00000000"
       android:pathData="M54,54m-28,0a28,28 0,1 1,56 0a28,28 0,1 1,-56 0"/>
 
-  <!-- Triángulo Blanco de Play en el Centro (Play más grande) -->
+  <!-- Triángulo Blanco de Play en el Centro (Con más padding interno) -->
   <path
       android:fillColor="#FFFFFF"
-      android:pathData="M46,38 v32 l22,-16 z"/>
+      android:pathData="M49,44 v20 l14,-10 z"/>
 </vector>
