@@ -1,0 +1,31 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+  
+  <!-- Fondo Circular Oscuro -->
+  <path
+      android:fillColor="#121212"
+      android:pathData="M54,54m-50,0a50,50 0,1 1,100 0a50,50 0,1 1,-100 0"/>
+
+  <!-- Escudo Naranja (Estilo Brave) -->
+  <path
+      android:fillColor="#FF5722"
+      android:pathData="M54,18L26,29v28c0,17.3 12,33.4 28,37c16,-3.6 28,-19.7 28,-37V29L54,18z"/>
+
+  <!-- Cuerpo Interno del Escudo (Gris Oscuro) -->
+  <path
+      android:fillColor="#1E1E1E"
+      android:pathData="M54,22L30,31.5v25.5c0,15 10.2,29 24,32.2c13.8,-3.2 24,-17.2 24,-32.2V31.5L54,22z"/>
+
+  <!-- Botón de Reproducción YouTube (Rojo) -->
+  <path
+      android:fillColor="#FF0000"
+      android:pathData="M43,43h22c2.8,0 5,2.2 5,5v12c0,2.8 -2.2,5 -5,5h-22c-2.8,0 -5,-2.2 -5,-5v-12c0,-2.8 2.2,-5 5,-5z"/>
+
+  <!-- Triángulo Blanco de Play -->
+  <path
+      android:fillColor="#FFFFFF"
+      android:pathData="M50,48v12l11,-6z"/>
+</vector>
