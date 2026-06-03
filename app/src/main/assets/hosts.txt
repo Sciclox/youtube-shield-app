@@ -1,0 +1,30 @@
+# YouTube Ad and Tracking Domains
+doubleclick.net
+googleads.g.doubleclick.net
+googlesyndication.com
+pagead2.googlesyndication.com
+adservice.google.com
+ad.doubleclick.net
+static.doubleclick.net
+securepubads.g.doubleclick.net
+pubads.g.doubleclick.net
+video-stats.l.google.com
+s.youtube.com
+ads.youtube.com
+youtube.com/pagead
+youtube.com/ptracking
+youtube-ui.l.google.com
+partnerad.l.doubleclick.net
+# General Ad Networks & Analytics
+quantserve.com
+adnxs.com
+amazon-adsystem.com
+google-analytics.com
+scorecardresearch.com
+crazyegg.com
+mixpanel.com
+hotjar.com
+optimizely.com
+flurry.com
+app-measurement.com
+firebase-settings.crashlytics.com
