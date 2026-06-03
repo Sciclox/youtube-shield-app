@@ -43,6 +43,7 @@ class MainActivity : AppCompatActivity() {
     private var playbackService: MediaPlaybackService? = null
     private var isBound = false
     private val NOTIFICATION_PERMISSION_CODE = 1002
+    private var lastVideoId: String? = null
 
     private val serviceConnection = object : android.content.ServiceConnection {
         override fun onServiceConnected(name: android.content.ComponentName?, service: android.os.IBinder?) {
@@ -139,12 +140,24 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPause() {
                 runOnUiThread {
-                    webView.evaluateJavascript("document.querySelector('video').pause()", null)
+                    // Desactivar temporalmente la protección de pausa para procesar el clic manual del widget
+                    webView.evaluateJavascript(
+                        "(function() { window.shieldIgnorePause = false; var v = document.querySelector('video'); if(v) v.pause(); window.shieldIgnorePause = true; })()",
+                        null
+                    )
                 }
             }
 
             override fun onNext() {
                 runOnUiThread {
+                    // Botones inversos: Siguiente en el widget va al video anterior (historial)
+                    webView.evaluateJavascript("window.history.back()", null)
+                }
+            }
+
+            override fun onPrevious() {
+                runOnUiThread {
+                    // Botones inversos: Atrás en el widget va al video siguiente (autoplay/click)
                     val js = """
                         (function() {
                             var btn = document.querySelector('.ytp-next-button, .next-button, .ytm-next-button, [class*="next-button"]');
@@ -159,12 +172,6 @@ class MainActivity : AppCompatActivity() {
                         })()
                     """.trimIndent()
                     webView.evaluateJavascript(js, null)
-                }
-            }
-
-            override fun onPrevious() {
-                runOnUiThread {
-                    webView.evaluateJavascript("window.history.back()", null)
                 }
             }
 
@@ -183,6 +190,38 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun queryVideoState() {
+        val currentUrl = webView.url ?: ""
+        if (currentUrl.contains("watch?v=")) {
+            try {
+                val uri = Uri.parse(currentUrl)
+                val videoId = uri.getQueryParameter("v")
+                if (videoId != null && videoId != lastVideoId) {
+                    lastVideoId = videoId
+                    runOnUiThread {
+                        // Recargar el WebView para forzar la inyección limpia del bloqueador en el nuevo video
+                        webView.reload()
+                    }
+                    return
+                }
+            } catch (e: Exception) {
+                // Ignorar error al parsear URL
+            }
+        } else if (currentUrl.contains("/shorts/")) {
+            try {
+                val segments = Uri.parse(currentUrl).pathSegments
+                val shortId = segments.lastOrNull()
+                if (shortId != null && shortId != lastVideoId) {
+                    lastVideoId = shortId
+                    runOnUiThread {
+                        webView.reload()
+                    }
+                    return
+                }
+            } catch (e: Exception) {
+                // Ignorar
+            }
+        }
+
         val js = """
             (function() {
                 var video = document.querySelector('video');

@@ -1,67 +1,21 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-
-  <!-- Fondo: Degradado Púrpura Oscuro Premium -->
-  <path
-      android:pathData="M54,54m-50,0a50,50 0,1 1,100 0a50,50 0,1 1,-100 0">
-    <aapt:attr name="android:fillColor">
-      <gradient
-          android:startX="54"
-          android:startY="4"
-          android:endX="54"
-          android:endY="104"
-          android:type="linear">
-        <item android:offset="0.0" android:color="#1A0B2E"/>
-        <item android:offset="1.0" android:color="#0B0314"/>
-      </gradient>
-    </aapt:attr>
-  </path>
-
-  <!-- Escudo Cyberpunk (Degradado Neón Violeta a Cian) -->
-  <path
-      android:pathData="M54,16 L84,28 C84,54.4 69.4,76.5 54,86 C38.6,76.5 24,54.4 24,28 L54,16 Z">
-    <aapt:attr name="android:fillColor">
-      <gradient
-          android:startX="54"
-          android:startY="16"
-          android:endX="54"
-          android:endY="86"
-          android:type="linear">
-        <item android:offset="0.0" android:color="#E040FB"/>
-        <item android:offset="1.0" android:color="#00E5FF"/>
-      </gradient>
-    </aapt:attr>
-  </path>
-
-  <!-- Máscara Oscura Interna del Escudo (Efecto de Relieve) -->
-  <path
-      android:fillColor="#15121B"
-      android:pathData="M54,20 L80,30.4 C80,52.8 67.5,72 54,81.4 C40.5,72 28,52.8 28,30.4 L54,20 Z"/>
-
-  <!-- Botón Play de Fuego (Naranja a Amarillo) -->
-  <path
-      android:pathData="M44,38 L72,54 L44,70 Z">
-    <aapt:attr name="android:fillColor">
-      <gradient
-          android:startX="44"
-          android:startY="54"
-          android:endX="72"
-          android:endY="54"
-          android:type="linear">
-        <item android:offset="0.0" android:color="#FF3D00"/>
-        <item android:offset="1.0" android:color="#FFEA00"/>
-      </gradient>
-    </aapt:attr>
-  </path>
-
-  <!-- Brillo y Detalle de Cristal en Play -->
+  
+  <!-- Fondo Blanco de la App -->
   <path
       android:fillColor="#FFFFFF"
-      android:pathData="M44,38 L52,43.2 L44,54 Z"
-      android:alpha="0.25"/>
+      android:pathData="M54,54m-50,0a50,50 0,1 1,100 0a50,50 0,1 1,-100 0"/>
 
+  <!-- Rectángulo Rojo Redondeado (Logo Oficial de YouTube) -->
+  <path
+      android:fillColor="#FF0000"
+      android:pathData="M24,34 h60 c11,0 20,9 20,20 v0 c0,11 -9,20 -20,20 h-60 c-11,0 -20,-9 -20,-20 v0 c0,-11 9,-20 20,-20 z"/>
+
+  <!-- Triángulo Blanco de Play Oficial -->
+  <path
+      android:fillColor="#FFFFFF"
+      android:pathData="M46,42 v24 l20,-12 z"/>
 </vector>
