@@ -78,7 +78,8 @@ class MediaPlaybackService : Service() {
         }
 
         // Mostrar de inmediato una notificación por defecto para cumplir con Android 14
-        showNotification("YouTube Shield", false, false, drawableToBitmap(R.drawable.ic_app_icon))
+        val defaultBitmap = drawableToBitmap(R.drawable.ic_app_icon)
+        showNotification("YouTube Shield", false, false, defaultBitmap, getDominantColor(defaultBitmap))
     }
 
     override fun onBind(intent: Intent?): IBinder {
@@ -161,10 +162,11 @@ class MediaPlaybackService : Service() {
             .build()
         mediaSession?.setMetadata(metadata)
 
-        showNotification(title, isPlaying, isLooping, displayBitmap)
+        val dominantColor = getDominantColor(displayBitmap)
+        showNotification(title, isPlaying, isLooping, displayBitmap, dominantColor)
     }
 
-    private fun showNotification(title: String, isPlaying: Boolean, isLooping: Boolean, thumbnail: android.graphics.Bitmap) {
+    private fun showNotification(title: String, isPlaying: Boolean, isLooping: Boolean, thumbnail: android.graphics.Bitmap, dominantColor: Int) {
         val channelId = "youtube_shield_playback"
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
@@ -201,15 +203,21 @@ class MediaPlaybackService : Service() {
             .setContentTitle(title)
             .setContentText(loopIndicatorText)
             .setLargeIcon(thumbnail)
-            .setStyle(
-                Notification.MediaStyle()
-                    .setMediaSession(mediaSession?.sessionToken)
-                    .setShowActionsInCompactView(0, 1, 2)
-            )
-            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_previous, "Anterior", pPrev).build())
-            .addAction(Notification.Action.Builder(playPauseIcon, playPauseText, pPlay).build())
-            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_next, "Siguiente", pNext).build())
-            .addAction(Notification.Action.Builder(notificationLoopIcon, if (isLooping) "Bucle: 1" else "Bucle: Normal", pLoop).build())
+            .setColor(dominantColor)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            notificationBuilder.setColorized(true)
+        }
+
+        notificationBuilder.setStyle(
+            Notification.MediaStyle()
+                .setMediaSession(mediaSession?.sessionToken)
+                .setShowActionsInCompactView(0, 1, 2)
+        )
+        .addAction(Notification.Action.Builder(android.R.drawable.ic_media_previous, "Anterior", pPrev).build())
+        .addAction(Notification.Action.Builder(playPauseIcon, playPauseText, pPlay).build())
+        .addAction(Notification.Action.Builder(android.R.drawable.ic_media_next, "Siguiente", pNext).build())
+        .addAction(Notification.Action.Builder(notificationLoopIcon, if (isLooping) "Bucle: 1" else "Bucle: Normal", pLoop).build())
 
         val mainIntent = Intent(this, MainActivity::class.java).apply {
             action = Intent.ACTION_MAIN
@@ -259,5 +267,26 @@ class MediaPlaybackService : Service() {
         drawable.setBounds(0, 0, canvas.width, canvas.height)
         drawable.draw(canvas)
         return bitmap
+    }
+
+    private fun getDominantColor(bitmap: Bitmap): Int {
+        val smallBitmap = Bitmap.createScaledBitmap(bitmap, 8, 8, false)
+        var redSum = 0
+        var greenSum = 0
+        var blueSum = 0
+        val pixelCount = 64
+        for (y in 0 until 8) {
+            for (x in 0 until 8) {
+                val color = smallBitmap.getPixel(x, y)
+                redSum += android.graphics.Color.red(color)
+                greenSum += android.graphics.Color.green(color)
+                blueSum += android.graphics.Color.blue(color)
+            }
+        }
+        smallBitmap.recycle()
+        val r = (redSum / pixelCount).coerceIn(0, 255)
+        val g = (greenSum / pixelCount).coerceIn(0, 255)
+        val b = (blueSum / pixelCount).coerceIn(0, 255)
+        return android.graphics.Color.rgb(r, g, b)
     }
 }
