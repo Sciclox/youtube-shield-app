@@ -67,7 +67,7 @@ class MediaPlaybackService : Service() {
                 callback?.onPrevious()
             }
 
-            override fun onCustomAction(action: String?, extras: android.os.Bundle?) {
+            override fun onCustomAction(action: String, extras: android.os.Bundle?) {
                 super.onCustomAction(action, extras)
                 if (action == "ACTION_TOGGLE_LOOP") {
                     callback?.onToggleLoop()
