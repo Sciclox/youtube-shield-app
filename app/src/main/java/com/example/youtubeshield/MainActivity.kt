@@ -770,6 +770,85 @@ class MainActivity : AppCompatActivity() {
     private fun injectVisibilityOverride() {
         val js = """
             (function() {
+                // 0. Interceptar ytcfg y JSON.parse para desactivar/bloquear anuncios nativos
+                if (!window.shieldYtcfgOverridden) {
+                    window.shieldYtcfgOverridden = true;
+                    var applyAdBlockFlags = function(obj) {
+                        if (obj && typeof obj === 'object') {
+                            if (obj.ad_placements || obj.adPlacements) {
+                                obj.ad_placements = [];
+                                obj.adPlacements = [];
+                            }
+                            if (obj.ad_slots || obj.adSlots) {
+                                obj.ad_slots = [];
+                                obj.adSlots = [];
+                            }
+                            if (obj.EXPERIMENT_FLAGS) {
+                                obj.EXPERIMENT_FLAGS.web_enable_ad_signals = false;
+                                obj.EXPERIMENT_FLAGS.web_ad_signals = false;
+                                obj.EXPERIMENT_FLAGS.web_enable_ad_placement_config = false;
+                                obj.EXPERIMENT_FLAGS.web_enable_ad_slots = false;
+                                obj.EXPERIMENT_FLAGS.web_enable_midrolls = false;
+                                obj.EXPERIMENT_FLAGS.web_enable_pre_rolls = false;
+                                obj.EXPERIMENT_FLAGS.external_play_ads = false;
+                            }
+                        }
+                    };
+                    if (window.ytcfg) {
+                        if (window.ytcfg.set) {
+                            var originalSet = window.ytcfg.set;
+                            window.ytcfg.set = function(payload) {
+                                applyAdBlockFlags(payload);
+                                originalSet.apply(this, arguments);
+                            };
+                        }
+                        if (window.ytcfg.configs) {
+                            window.ytcfg.configs.forEach(applyAdBlockFlags);
+                        }
+                    } else {
+                        var ytcfgVal;
+                        Object.defineProperty(window, 'ytcfg', {
+                            get: function() { return ytcfgVal; },
+                            set: function(val) {
+                                ytcfgVal = val;
+                                if (ytcfgVal && ytcfgVal.set) {
+                                    var orig = ytcfgVal.set;
+                                    ytcfgVal.set = function(payload) {
+                                        applyAdBlockFlags(payload);
+                                        orig.apply(this, arguments);
+                                    };
+                                }
+                            },
+                            configurable: true
+                        });
+                    }
+                }
+
+                if (!window.shieldJsonOverridden) {
+                    window.shieldJsonOverridden = true;
+                    var originalParse = JSON.parse;
+                    JSON.parse = function(text) {
+                        var obj = originalParse(text);
+                        try {
+                            if (obj && typeof obj === 'object') {
+                                if (obj.adPlacements) {
+                                    obj.adPlacements = [];
+                                }
+                                if (obj.playerAds) {
+                                    obj.playerAds = [];
+                                }
+                                if (obj.adSlots) {
+                                    obj.adSlots = [];
+                                }
+                                if (obj.playerConfig && obj.playerConfig.adPlacementConfig) {
+                                    obj.playerConfig.adPlacementConfig = {};
+                                }
+                            }
+                        } catch(e) {}
+                        return obj;
+                    };
+                }
+
                 // Sincronizar estado de bucle desde Android Kotlin
                 window.shieldLoopEnabled = $isLoopEnabled;
                 var v = document.querySelector('video');
