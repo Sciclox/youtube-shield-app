@@ -45,7 +45,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onCreate(Bundle savedInstanceState) {
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
@@ -181,58 +181,60 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView.webChromeClient = object : WebChromeClient() {
-            // Manejo de reproducción de video en pantalla completa (Fullscreen)
             override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
-                if (customView != null) {
-                    onHideCustomView()
-                    return
+                if (view != null && callback != null) {
+                    showCustomView(view, callback)
                 }
-
-                customView = view
-                originalSystemUiVisibility = window.decorView.systemUiVisibility
-                originalOrientation = requestedOrientation
-
-                // Ocultar la barra de navegación y el WebView principal
-                webView.visibility = View.GONE
-                navBarCard.visibility = View.GONE
-
-                // Mostrar el contenedor de pantalla completa e insertar la vista de video
-                fullscreenContainer.visibility = View.VISIBLE
-                fullscreenContainer.addView(customView)
-                customViewCallback = callback
-
-                // Configurar orientación horizontal para videos
-                requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-
-                // Ocultar la barra de estado y de navegación de Android (Modo Imersivo)
-                window.decorView.systemUiVisibility = (
-                        View.SYSTEM_UI_FLAG_FULLSCREEN or
-                        View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                        View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                )
             }
 
             override fun onHideCustomView() {
-                if (customView == null) return
-
-                // Quitar la vista de video y ocultar el contenedor fullscreen
-                fullscreenContainer.removeView(customView)
-                fullscreenContainer.visibility = View.GONE
-                customView = null
-                customViewCallback?.onCustomViewHidden()
-
-                // Volver a mostrar WebView y barra de controles
-                webView.visibility = View.VISIBLE
-                navBarCard.visibility = View.VISIBLE
-
-                // Restaurar la orientación original y visibilidad del sistema
-                requestedOrientation = originalOrientation
-                window.decorView.systemUiVisibility = originalSystemUiVisibility
+                hideCustomView()
             }
         }
 
         // Cargar YouTube inicialmente
         webView.loadUrl("https://m.youtube.com")
+    }
+
+    private fun showCustomView(view: View, callback: WebChromeClient.CustomViewCallback) {
+        if (customView != null) {
+            hideCustomView()
+            return
+        }
+
+        customView = view
+        originalSystemUiVisibility = window.decorView.systemUiVisibility
+        originalOrientation = requestedOrientation
+
+        webView.visibility = View.GONE
+        navBarCard.visibility = View.GONE
+
+        fullscreenContainer.visibility = View.VISIBLE
+        fullscreenContainer.addView(customView)
+        customViewCallback = callback
+
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+
+        window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+        )
+    }
+
+    private fun hideCustomView() {
+        if (customView == null) return
+
+        fullscreenContainer.removeView(customView)
+        fullscreenContainer.visibility = View.GONE
+        customView = null
+        customViewCallback?.onCustomViewHidden()
+
+        webView.visibility = View.VISIBLE
+        navBarCard.visibility = View.VISIBLE
+
+        requestedOrientation = originalOrientation
+        window.decorView.systemUiVisibility = originalSystemUiVisibility
     }
 
     private fun injectAdBlockScript() {
@@ -298,7 +300,7 @@ class MainActivity : AppCompatActivity() {
     override fun onBackPressed() {
         // Permitir volver atrás en el historial del WebView con el botón físico de Android
         if (customView != null) {
-            onHideCustomView()
+            hideCustomView()
         } else if (webView.canGoBack()) {
             webView.goBack()
         } else {
