@@ -349,7 +349,7 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
                     }
-                }) {
+                } catch (e2: Exception) {
                     // Ignorar
                 }
             }
@@ -769,7 +769,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onBackPressed() {
         if (customView != null) {
-            hideCustomView())            webView.goBack()
+            hideCustomView()
+        } else if (webView.canGoBack()) {
+            webView.goBack()
         } else {
             super.onBackPressed()
         }
