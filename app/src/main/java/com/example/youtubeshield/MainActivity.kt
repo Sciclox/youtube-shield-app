@@ -206,6 +206,13 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             }
+
+            override fun onSeekTo(position: Long) {
+                runOnUiThread {
+                    val seconds = position / 1000.0
+                    webView.evaluateJavascript("var v = document.querySelector('video'); if (v) v.currentTime = $seconds;", null)
+                }
+            }
         })
     }
 
@@ -264,7 +271,7 @@ class MainActivity : AppCompatActivity() {
         val js = """
             (function() {
                 var video = document.querySelector('video');
-                if (!video) return JSON.stringify({ title: "YouTube Shield", isPlaying: false });
+                if (!video) return JSON.stringify({ title: "YouTube Shield", isPlaying: false, position: 0, duration: 0 });
                 
                 var title = document.title;
                 title = title.replace(/^\(\d+\)\s+/, '');
@@ -272,9 +279,14 @@ class MainActivity : AppCompatActivity() {
                     title = title.substring(0, title.length - 10);
                 }
                 
+                var posMs = Math.floor(video.currentTime * 1000);
+                var durMs = isNaN(video.duration) ? 0 : Math.floor(video.duration * 1000);
+                
                 return JSON.stringify({
                     title: title || "YouTube Video",
-                    isPlaying: !video.paused && !video.ended
+                    isPlaying: !video.paused && !video.ended,
+                    position: posMs,
+                    duration: durMs
                 });
             })()
         """.trimIndent()
@@ -292,8 +304,10 @@ class MainActivity : AppCompatActivity() {
                     val json = org.json.JSONObject(cleanResult)
                     val title = json.optString("title", "YouTube Shield")
                     val isPlaying = json.optBoolean("isPlaying", false)
-
-                    playbackService?.updateMetadata(title, isPlaying, isLoopEnabled, currentThumbnail)
+                    val position = json.optLong("position", 0L)
+                    val duration = json.optLong("duration", 0L)
+                    
+                    playbackService?.updateMetadata(title, isPlaying, isLoopEnabled, currentThumbnail, position, duration)
                 } catch (e: Exception) {
                     // Ignorar errores de parsing
                 }
@@ -309,7 +323,10 @@ class MainActivity : AppCompatActivity() {
                 connection.connectTimeout = 3000
                 connection.readTimeout = 3000
                 val input = connection.getInputStream()
-                val bitmap = android.graphics.BitmapFactory.decodeStream(input)
+                var bitmap = android.graphics.BitmapFactory.decodeStream(input)
+                if (bitmap != null) {
+                    bitmap = cropTo16v9(bitmap)
+                }
                 runOnUiThread {
                     if (loadedThumbnailVideoId == videoId) {
                         currentThumbnail = bitmap
@@ -333,7 +350,10 @@ class MainActivity : AppCompatActivity() {
                     connection.connectTimeout = 3000
                     connection.readTimeout = 3000
                     val input = connection.getInputStream()
-                    val bitmap = android.graphics.BitmapFactory.decodeStream(input)
+                    var bitmap = android.graphics.BitmapFactory.decodeStream(input)
+                    if (bitmap != null) {
+                        bitmap = cropTo16v9(bitmap)
+                    }
                     runOnUiThread {
                         if (loadedThumbnailVideoId == videoId) {
                             currentThumbnail = bitmap
@@ -354,6 +374,21 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }.start()
+    }
+
+    private fun cropTo16v9(bitmap: Bitmap): Bitmap {
+        val width = bitmap.width
+        val height = bitmap.height
+        val targetHeight = (width * 9) / 16
+        if (targetHeight < height) {
+            val yOffset = (height - targetHeight) / 2
+            try {
+                return Bitmap.createBitmap(bitmap, 0, yOffset, width, targetHeight)
+            } catch (e: Exception) {
+                // Fallback
+            }
+        }
+        return bitmap
     }
 
     private fun setupNavigationButtons() {

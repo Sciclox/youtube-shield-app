@@ -57,6 +57,7 @@ class MediaPlaybackService : Service() {
         fun onNext()
         fun onPrevious()
         fun onToggleLoop()
+        fun onSeekTo(position: Long)
     }
 
     inner class LocalBinder : Binder() {
@@ -125,6 +126,11 @@ class MediaPlaybackService : Service() {
                     callback?.onToggleLoop()
                 }
             }
+
+            override fun onSeekTo(pos: Long) {
+                super.onSeekTo(pos)
+                callback?.onSeekTo(pos)
+            }
         })
 
         // Configurar banderas para compatibilidad con dispositivos más antiguos
@@ -132,23 +138,23 @@ class MediaPlaybackService : Service() {
         mediaSession?.isActive = true
     }
 
-    fun updateMetadata(title: String, isPlaying: Boolean, isLooping: Boolean, thumbnail: android.graphics.Bitmap? = null) {
+    fun updateMetadata(title: String, isPlaying: Boolean, isLooping: Boolean, thumbnail: android.graphics.Bitmap? = null, position: Long = 0L, duration: Long = 0L) {
         // Guardar estado actual
         currentTitle = title
         currentIsPlaying = isPlaying
         currentIsLooping = isLooping
         currentThumbnailBitmap = thumbnail
-
         val stateBuilder = PlaybackState.Builder()
             .setActions(
                 PlaybackState.ACTION_PLAY or
                 PlaybackState.ACTION_PAUSE or
                 PlaybackState.ACTION_SKIP_TO_NEXT or
-                PlaybackState.ACTION_SKIP_TO_PREVIOUS
+                PlaybackState.ACTION_SKIP_TO_PREVIOUS or
+                PlaybackState.ACTION_SEEK_TO
             )
             .setState(
                 if (isPlaying) PlaybackState.STATE_PLAYING else PlaybackState.STATE_PAUSED,
-                PlaybackState.PLAYBACK_POSITION_UNKNOWN,
+                position,
                 1.0f
             )
 
@@ -169,7 +175,10 @@ class MediaPlaybackService : Service() {
         val metadata = MediaMetadata.Builder()
             .putString(MediaMetadata.METADATA_KEY_TITLE, title)
             .putString(MediaMetadata.METADATA_KEY_ARTIST, "YouTube Shield")
+            .putLong(MediaMetadata.METADATA_KEY_DURATION, duration)
             .putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, displayBitmap)
+            .putBitmap(MediaMetadata.METADATA_KEY_ART, displayBitmap)
+            .putBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON, displayBitmap)
             .build()
         mediaSession?.setMetadata(metadata)
 
@@ -309,6 +318,18 @@ class MediaPlaybackService : Service() {
         val r = (redSum / pixelCount).coerceIn(0, 255)
         val g = (greenSum / pixelCount).coerceIn(0, 255)
         val b = (blueSum / pixelCount).coerceIn(0, 255)
-        return android.graphics.Color.rgb(r, g, b)
+
+        // Convertir a HSL para potenciar saturación y luminosidad
+        val hsl = FloatArray(3)
+        androidx.core.graphics.ColorUtils.RGBToHSL(r, g, b, hsl)
+
+        // Brillo mínimo del 25% para que la iluminación sea visible y no negra
+        if (hsl[2] < 0.15f) {
+            hsl[2] = 0.25f
+        }
+        // Aumentar la saturación en 40% para hacer los colores más vivos
+        hsl[1] = (hsl[1] * 1.4f).coerceAtMost(0.9f)
+
+        return androidx.core.graphics.ColorUtils.HSLToColor(hsl)
     }
 }

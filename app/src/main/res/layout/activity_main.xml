@@ -24,7 +24,7 @@
         android:id="@+id/webView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        app:layout_constraintBottom_toTopOf="@id/navBarCard"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
@@ -34,7 +34,7 @@
         android:id="@+id/splashOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@color/background_dark"
+        android:background="#0F0F0F"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -47,13 +47,12 @@
             android:gravity="center"
             android:orientation="vertical">
 
-            <!-- Logo representation -->
+            <!-- Logo representation (Usa el nuevo ic_app_icon circular) -->
             <ImageView
                 android:id="@+id/splashLogo"
                 android:layout_width="96dp"
                 android:layout_height="96dp"
-                android:src="@drawable/ic_shield"
-                app:tint="@color/brave_orange" />
+                android:src="@drawable/ic_app_icon" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -64,20 +63,29 @@
                 android:textSize="22sp"
                 android:textStyle="bold" />
 
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="Bucle sin fin &amp; Sin anuncios"
+                android:textColor="#8E8E8E"
+                android:textSize="14sp" />
+
             <ProgressBar
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:layout_marginTop="32dp"
-                android:indeterminateTint="@color/brave_orange" />
+                android:indeterminateTint="@color/white" />
         </LinearLayout>
     </FrameLayout>
 
-    <!-- Floating Navigation Bar -->
+    <!-- Floating Navigation Bar (Oculta por defecto) -->
     <androidx.cardview.widget.CardView
         android:id="@+id/navBarCard"
         android:layout_width="match_parent"
         android:layout_height="64dp"
         android:layout_margin="12dp"
+        android:visibility="gone"
         app:cardBackgroundColor="@color/nav_bar_background"
         app:cardCornerRadius="20dp"
         app:cardElevation="8dp"
