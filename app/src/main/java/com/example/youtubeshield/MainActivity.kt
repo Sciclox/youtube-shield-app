@@ -566,7 +566,7 @@ class MainActivity : AppCompatActivity() {
         customViewCallback?.onCustomViewHidden()
 
         webView.visibility = View.VISIBLE
-        navBarCard.visibility = View.VISIBLE
+        navBarCard.visibility = View.GONE
 
         requestedOrientation = originalOrientation
         window.decorView.systemUiVisibility = originalSystemUiVisibility
