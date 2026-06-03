@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+  <!-- Flechas de Repetición -->
+  <path
+      android:fillColor="#FFFFFFFF"
+      android:pathData="M7,7h10v3l4,-4l-4,-4v3H5v6h2V7z M17,17H7v-3l-4,4l4,4v-3h12v-6h-2V17z"/>
+  <!-- El número 1 en el centro -->
+  <path
+      android:fillColor="#FFFFFFFF"
+      android:pathData="M11,9h1.5v6H11z M11,9l-1,1v1h1z"/>
+</vector>

@@ -9,15 +9,15 @@
       android:fillColor="#FF0000"
       android:pathData="M0,0h108v108H0z"/>
 
-  <!-- Círculo Central con Borde Blanco -->
+  <!-- Círculo Central con Borde Blanco (Círculo más grande: radio 28) -->
   <path
       android:strokeColor="#FFFFFF"
       android:strokeWidth="4"
       android:fillColor="#00000000"
-      android:pathData="M54,54m-22,0a22,22 0,1 1,44 0a22,22 0,1 1,-44 0"/>
+      android:pathData="M54,54m-28,0a28,28 0,1 1,56 0a28,28 0,1 1,-56 0"/>
 
-  <!-- Triángulo Blanco de Play en el Centro -->
+  <!-- Triángulo Blanco de Play en el Centro (Play más grande) -->
   <path
       android:fillColor="#FFFFFF"
-      android:pathData="M48,42 v24 l18,-12 z"/>
+      android:pathData="M46,38 v32 l22,-16 z"/>
 </vector>

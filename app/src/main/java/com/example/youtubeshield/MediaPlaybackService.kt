@@ -76,7 +76,7 @@ class MediaPlaybackService : Service() {
         }
 
         // Mostrar de inmediato una notificación por defecto para cumplir con Android 14
-        showNotification("YouTube Shield", false, false)
+        showNotification("YouTube Shield", false, false, BitmapFactory.decodeResource(resources, R.drawable.ic_app_icon))
     }
 
     override fun onBind(intent: Intent?): IBinder {
@@ -124,7 +124,7 @@ class MediaPlaybackService : Service() {
         mediaSession?.isActive = true
     }
 
-    fun updateMetadata(title: String, isPlaying: Boolean, isLooping: Boolean) {
+    fun updateMetadata(title: String, isPlaying: Boolean, isLooping: Boolean, thumbnail: android.graphics.Bitmap? = null) {
         val stateBuilder = PlaybackState.Builder()
             .setActions(
                 PlaybackState.ACTION_PLAY or
@@ -138,8 +138,8 @@ class MediaPlaybackService : Service() {
                 1.0f
             )
 
-        val loopIcon = R.drawable.ic_refresh
-        val loopActionName = if (isLooping) "Repetir: ON" else "Repetir: OFF"
+        val loopIcon = if (isLooping) R.drawable.ic_repeat_one else R.drawable.ic_repeat
+        val loopActionName = if (isLooping) "Repetir: 1" else "Repetir: Todo"
         stateBuilder.addCustomAction(
             PlaybackState.CustomAction.Builder(
                 "ACTION_TOGGLE_LOOP",
@@ -150,17 +150,19 @@ class MediaPlaybackService : Service() {
 
         mediaSession?.setPlaybackState(stateBuilder.build())
 
+        val displayBitmap = thumbnail ?: BitmapFactory.decodeResource(resources, R.drawable.ic_app_icon)
+
         val metadata = MediaMetadata.Builder()
             .putString(MediaMetadata.METADATA_KEY_TITLE, title)
             .putString(MediaMetadata.METADATA_KEY_ARTIST, "YouTube Shield")
-            .putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, BitmapFactory.decodeResource(resources, R.drawable.ic_app_icon))
+            .putBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART, displayBitmap)
             .build()
         mediaSession?.setMetadata(metadata)
 
-        showNotification(title, isPlaying, isLooping)
+        showNotification(title, isPlaying, isLooping, displayBitmap)
     }
 
-    private fun showNotification(title: String, isPlaying: Boolean, isLooping: Boolean) {
+    private fun showNotification(title: String, isPlaying: Boolean, isLooping: Boolean, thumbnail: android.graphics.Bitmap) {
         val channelId = "youtube_shield_playback"
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
@@ -189,13 +191,14 @@ class MediaPlaybackService : Service() {
         val pLoop = PendingIntent.getBroadcast(this, 4, loopIntent, flags)
 
         val loopIndicatorText = if (isLooping) "🔂 Repetir canción activa" else "➡️ Reproducción normal"
+        val notificationLoopIcon = if (isLooping) R.drawable.ic_repeat_one else R.drawable.ic_repeat
 
         val notificationBuilder = Notification.Builder(this, channelId)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setSmallIcon(R.drawable.ic_shield)
             .setContentTitle(title)
             .setContentText(loopIndicatorText)
-            .setLargeIcon(BitmapFactory.decodeResource(resources, R.drawable.ic_app_icon))
+            .setLargeIcon(thumbnail)
             .setStyle(
                 Notification.MediaStyle()
                     .setMediaSession(mediaSession?.sessionToken)
@@ -204,7 +207,7 @@ class MediaPlaybackService : Service() {
             .addAction(Notification.Action.Builder(android.R.drawable.ic_media_previous, "Anterior", pPrev).build())
             .addAction(Notification.Action.Builder(playPauseIcon, playPauseText, pPlay).build())
             .addAction(Notification.Action.Builder(android.R.drawable.ic_media_next, "Siguiente", pNext).build())
-            .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_rotate, if (isLooping) "Bucle: SI" else "Bucle: NO", pLoop).build())
+            .addAction(Notification.Action.Builder(notificationLoopIcon, if (isLooping) "Bucle: 1" else "Bucle: Normal", pLoop).build())
 
         val mainIntent = Intent(this, MainActivity::class.java).apply {
             action = Intent.ACTION_MAIN

@@ -45,6 +45,8 @@ class MainActivity : AppCompatActivity() {
     private var isBound = false
     private val NOTIFICATION_PERMISSION_CODE = 1002
     private var lastVideoId: String? = null
+    private var currentThumbnail: Bitmap? = null
+    private var loadedThumbnailVideoId: String? = null
 
     private val serviceConnection = object : android.content.ServiceConnection {
         override fun onServiceConnected(name: android.content.ComponentName?, service: android.os.IBinder?) {
@@ -203,17 +205,21 @@ class MainActivity : AppCompatActivity() {
 
     private fun queryVideoState() {
         val currentUrl = webView.url ?: ""
+        var currentVideoId: String? = null
         if (currentUrl.contains("watch?v=")) {
             try {
                 val uri = Uri.parse(currentUrl)
                 val videoId = uri.getQueryParameter("v")
-                if (videoId != null && videoId != lastVideoId) {
-                    lastVideoId = videoId
-                    runOnUiThread {
-                        // Recargar el WebView para forzar la inyección limpia del bloqueador en el nuevo video
-                        webView.reload()
+                if (videoId != null) {
+                    if (videoId != lastVideoId) {
+                        lastVideoId = videoId
+                        runOnUiThread {
+                            // Recargar el WebView para forzar la inyección limpia del bloqueador en el nuevo video
+                            webView.reload()
+                        }
+                        return
                     }
-                    return
+                    currentVideoId = videoId
                 }
             } catch (e: Exception) {
                 // Ignorar error al parsear URL
@@ -222,16 +228,31 @@ class MainActivity : AppCompatActivity() {
             try {
                 val segments = Uri.parse(currentUrl).pathSegments
                 val shortId = segments.lastOrNull()
-                if (shortId != null && shortId != lastVideoId) {
-                    lastVideoId = shortId
-                    runOnUiThread {
-                        webView.reload()
+                if (shortId != null) {
+                    if (shortId != lastVideoId) {
+                        lastVideoId = shortId
+                        runOnUiThread {
+                            webView.reload()
+                        }
+                        return
                     }
-                    return
+                    currentVideoId = shortId
                 }
             } catch (e: Exception) {
                 // Ignorar
             }
+        }
+
+        // Descargar miniatura si hay un video activo nuevo
+        if (currentVideoId != null) {
+            if (currentVideoId != loadedThumbnailVideoId) {
+                loadedThumbnailVideoId = currentVideoId
+                currentThumbnail = null
+                fetchThumbnail(currentVideoId)
+            }
+        } else {
+            loadedThumbnailVideoId = null
+            currentThumbnail = null
         }
 
         val js = """
@@ -266,12 +287,47 @@ class MainActivity : AppCompatActivity() {
                     val title = json.optString("title", "YouTube Shield")
                     val isPlaying = json.optBoolean("isPlaying", false)
                     
-                    playbackService?.updateMetadata(title, isPlaying, isLoopEnabled)
+                    playbackService?.updateMetadata(title, isPlaying, isLoopEnabled, currentThumbnail)
                 } catch (e: Exception) {
                     // Ignorar errores de parsing
                 }
             }
         }
+    }
+
+    private fun fetchThumbnail(videoId: String) {
+        Thread {
+            try {
+                val url = java.net.URL("https://img.youtube.com/vi/$videoId/hqdefault.jpg")
+                val connection = url.openConnection()
+                connection.connectTimeout = 3000
+                connection.readTimeout = 3000
+                val input = connection.getInputStream()
+                val bitmap = android.graphics.BitmapFactory.decodeStream(input)
+                runOnUiThread {
+                    if (loadedThumbnailVideoId == videoId) {
+                        currentThumbnail = bitmap
+                    }
+                }
+            } catch (e: Exception) {
+                // Fallback a mqdefault si falla el de alta calidad
+                try {
+                    val url = java.net.URL("https://img.youtube.com/vi/$videoId/mqdefault.jpg")
+                    val connection = url.openConnection()
+                    connection.connectTimeout = 3000
+                    connection.readTimeout = 3000
+                    val input = connection.getInputStream()
+                    val bitmap = android.graphics.BitmapFactory.decodeStream(input)
+                    runOnUiThread {
+                        if (loadedThumbnailVideoId == videoId) {
+                            currentThumbnail = bitmap
+                        }
+                    }
+                } catch (e2: Exception) {
+                    // Ignorar
+                }
+            }
+        }.start()
     }
 
     private fun setupNavigationButtons() {
