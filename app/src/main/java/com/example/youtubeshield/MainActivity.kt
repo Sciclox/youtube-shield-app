@@ -168,12 +168,13 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                injectVisibilityOverride()
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                // Ocultar el Splash screen una vez que carga la primera página
                 splashOverlay.visibility = View.GONE
+                injectVisibilityOverride()
                 if (isShieldActive) {
                     injectAdBlockScript()
                 }
@@ -295,6 +296,36 @@ class MainActivity : AppCompatActivity() {
 
         // Ejecutar javascript en el WebView
         webView.evaluateJavascript(jsScript, null)
+        injectVisibilityOverride()
+    }
+
+    private fun injectVisibilityOverride() {
+        val js = """
+            (function() {
+                if (!window.shieldVisibilityOverridden) {
+                    try {
+                        Object.defineProperty(document, 'visibilityState', {
+                            get: function() { return 'visible'; },
+                            configurable: true
+                        });
+                        Object.defineProperty(document, 'hidden', {
+                            get: function() { return false; },
+                            configurable: true
+                        });
+                        var blockVisibilityEvent = function(e) {
+                            e.stopImmediatePropagation();
+                        };
+                        window.addEventListener('visibilitychange', blockVisibilityEvent, true);
+                        document.addEventListener('visibilitychange', blockVisibilityEvent, true);
+                        window.shieldVisibilityOverridden = true;
+                        console.log('Shield: Visibility API overridden successfully.');
+                    } catch (e) {
+                        console.error('Shield: visibility override failed', e);
+                    }
+                }
+            })();
+        """.trimIndent()
+        webView.evaluateJavascript(js, null)
     }
 
     override fun onBackPressed() {

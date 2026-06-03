@@ -15,6 +15,7 @@ Evita entrar a navegadores o lidiar con molesta publicidad visual y de video en 
 
 *   🚫 **Bloqueo Multicapa de Anuncios:** Intercepta peticiones de red a servidores de anuncios y limpia la interfaz de banners.
 *   ⚡ **Omisión Inteligente de Videos:** Salta automáticamente los anuncios de video (pre-roll/mid-roll), silenciando y acelerando su reproducción a 16x de manera inmediata cuando no son omitibles.
+*   🎧 **Reproducción en Segundo Plano:** Sigue escuchando tus videos o música favorita incluso al minimizar la aplicación o apagar la pantalla, burlando las restricciones del navegador móvil.
 *   📱 **Modo Horizontal Inmersivo Nativo:** Ajusta automáticamente la pantalla a modo horizontal (Landscape) y oculta las barras del sistema cuando se entra en pantalla completa.
 *   🧭 **Barra de Navegación Flotante Premium:** Controles minimalistas flotantes (Atrás, Adelante, Inicio, Recargar) integrados estéticamente.
 *   🛡️ **Interruptor Dinámico de Escudo:** Activa o desactiva el bloqueo de anuncios en caliente con un botón interactivo que recuerda tu preferencia.
