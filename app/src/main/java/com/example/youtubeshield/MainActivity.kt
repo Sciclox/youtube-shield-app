@@ -372,7 +372,15 @@ class MainActivity : AppCompatActivity() {
         val cssRules = """
             #masthead-ad, 
             ytd-companion-ad-renderer, 
+            ytm-companion-ad-renderer, 
             ytd-display-ad-renderer, 
+            ytm-display-ad-renderer, 
+            ytm-promoted-item, 
+            ytm-banner-ad-renderer, 
+            ytm-inline-ad-renderer, 
+            ytm-carousel-ad-renderer, 
+            ytm-statement-banner-ad-renderer, 
+            ytm-interactive-tabbed-header-ad-renderer, 
             .ad-container, 
             .ad-div, 
             .video-ads, 
@@ -381,12 +389,16 @@ class MainActivity : AppCompatActivity() {
             .ytp-ad-image-overlay, 
             .companion-ad-container, 
             ytd-promoted-sparkles-web-renderer, 
-            ytd-display-ad-renderer,
+            ytm-promoted-sparkles-web-renderer, 
             .ad-showing,
             .ad-interrupting,
             .ytp-ad-player-overlay,
+            .ytp-ad-player-overlay-layout,
             #player-ads { 
                 display: none !important; 
+                height: 0 !important;
+                width: 0 !important;
+                visibility: hidden !important;
             }
         """.trimIndent().replace("\n", " ")
 
@@ -403,7 +415,7 @@ class MainActivity : AppCompatActivity() {
 
                 // 2. Función omitidora principal
                 var skipAds = function() {
-                    var skipButtons = document.querySelectorAll('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-slot, .ytp-ad-skip-button-container');
+                    var skipButtons = document.querySelectorAll('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-slot, .ytp-ad-skip-button-container, [class*="skip-button"]');
                     skipButtons.forEach(function(btn) {
                         if (btn) {
                             btn.click();
@@ -412,7 +424,7 @@ class MainActivity : AppCompatActivity() {
                     });
 
                     var video = document.querySelector('video');
-                    var isAdPlaying = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay');
+                    var isAdPlaying = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay, .ytp-ad-player-overlay-layout');
                     if (video && isAdPlaying) {
                         video.muted = true;
                         video.playbackRate = 16.0;

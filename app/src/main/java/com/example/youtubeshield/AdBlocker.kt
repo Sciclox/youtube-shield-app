@@ -14,48 +14,55 @@ object AdBlocker {
 
     fun init(context: Context) {
         if (isLoaded) return
-        Thread {
-            try {
-                val assetManager = context.assets
-                val inputStream = assetManager.open("hosts.txt")
-                val reader = BufferedReader(InputStreamReader(inputStream))
-                var line: String?
-                while (reader.readLine().also { line = it } != null) {
-                    val cleanLine = line!!.trim()
-                    if (cleanLine.isNotEmpty() && !cleanLine.startsWith("#")) {
-                        blockedDomains.add(cleanLine.lowercase())
-                    }
+        try {
+            val assetManager = context.assets
+            val inputStream = assetManager.open("hosts.txt")
+            val reader = BufferedReader(InputStreamReader(inputStream))
+            var line: String?
+            while (reader.readLine().also { line = it } != null) {
+                val cleanLine = line!!.trim()
+                if (cleanLine.isNotEmpty() && !cleanLine.startsWith("#")) {
+                    blockedDomains.add(cleanLine.lowercase())
                 }
-                reader.close()
-                inputStream.close()
-                isLoaded = true
-                Log.d(TAG, "AdBlocker cargado con ${blockedDomains.size} dominios.")
-            } catch (e: Exception) {
-                Log.e(TAG, "Error cargando dominios de AdBlocker", e)
             }
-        }.start()
+            reader.close()
+            inputStream.close()
+            isLoaded = true
+            Log.d(TAG, "AdBlocker cargado de forma síncrona con ${blockedDomains.size} dominios.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error cargando dominios de AdBlocker", e)
+        }
     }
 
     fun isAd(url: String): Boolean {
         if (!isLoaded) return false
         try {
             val lowerUrl = url.lowercase()
-            // Detectar anuncios internos de YouTube servidos desde su propio dominio
+            // Detectar endpoints de publicidad y tracking internos de YouTube y Google
             if (lowerUrl.contains("youtube.com/pagead") ||
                 lowerUrl.contains("youtube.com/ptracking") ||
                 lowerUrl.contains("youtube.com/api/stats/ads") ||
                 lowerUrl.contains("youtube.com/api/stats/qoe") ||
                 lowerUrl.contains("/pagead/gen_204") ||
+                lowerUrl.contains("/pagead/interaction") ||
                 lowerUrl.contains("doubleclick.net") ||
                 lowerUrl.contains("googleads") ||
-                lowerUrl.contains("googlesyndication")
+                lowerUrl.contains("googlesyndication") ||
+                lowerUrl.contains("googletagservices.com") ||
+                lowerUrl.contains("adservice.google") ||
+                lowerUrl.contains("/pagead/")
             ) {
+                Log.d(TAG, "Bloqueado por patrón URL: $url")
                 return true
             }
 
             val uri = Uri.parse(url)
             val host = uri.host ?: return false
-            return isHostAd(host)
+            val isHostBlocked = isHostAd(host)
+            if (isHostBlocked) {
+                Log.d(TAG, "Bloqueado por host: $host")
+            }
+            return isHostBlocked
         } catch (e: Exception) {
             return false
         }
@@ -63,12 +70,6 @@ object AdBlocker {
 
     private fun isHostAd(host: String): Boolean {
         var tempHost = host.lowercase()
-        // Buscar coincidencias de subdominios de derecha a izquierda
-        // Ejemplo: sub.googleads.g.doubleclick.net -> comprueba:
-        // 1. sub.googleads.g.doubleclick.net
-        // 2. googleads.g.doubleclick.net
-        // 3. g.doubleclick.net
-        // 4. doubleclick.net
         while (tempHost.contains(".")) {
             if (blockedDomains.contains(tempHost)) {
                 return true
