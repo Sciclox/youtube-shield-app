@@ -1,8 +1,10 @@
 package com.example.youtubeshield
 
 import android.app.*
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.graphics.BitmapFactory
 import android.media.MediaMetadata
@@ -12,12 +14,35 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import androidx.core.content.ContextCompat
 
 class MediaPlaybackService : Service() {
 
     private val binder = LocalBinder()
     private var mediaSession: MediaSession? = null
     private var callback: PlaybackCallback? = null
+
+    // Acciones de intent para el BroadcastReceiver
+    companion object {
+        const val ACTION_PLAY = "com.example.youtubeshield.ACTION_PLAY"
+        const val ACTION_PAUSE = "com.example.youtubeshield.ACTION_PAUSE"
+        const val ACTION_PREV = "com.example.youtubeshield.ACTION_PREV"
+        const val ACTION_NEXT = "com.example.youtubeshield.ACTION_NEXT"
+        const val ACTION_LOOP = "com.example.youtubeshield.ACTION_LOOP"
+    }
+
+    private val mediaReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val action = intent?.action ?: return
+            when (action) {
+                ACTION_PLAY -> callback?.onPlay()
+                ACTION_PAUSE -> callback?.onPause()
+                ACTION_PREV -> callback?.onPrevious()
+                ACTION_NEXT -> callback?.onNext()
+                ACTION_LOOP -> callback?.onToggleLoop()
+            }
+        }
+    }
 
     interface PlaybackCallback {
         fun onPlay()
@@ -34,6 +59,24 @@ class MediaPlaybackService : Service() {
     override fun onCreate() {
         super.onCreate()
         setupMediaSession()
+
+        // Registrar receptor de transmisiones local para evitar restricciones de Android 12+
+        val filter = IntentFilter().apply {
+            addAction(ACTION_PLAY)
+            addAction(ACTION_PAUSE)
+            addAction(ACTION_PREV)
+            addAction(ACTION_NEXT)
+            addAction(ACTION_LOOP)
+        }
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(mediaReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(mediaReceiver, filter)
+        }
+
+        // Mostrar de inmediato una notificación por defecto para cumplir con Android 14
+        showNotification("YouTube Shield", false, false)
     }
 
     override fun onBind(intent: Intent?): IBinder {
@@ -44,6 +87,7 @@ class MediaPlaybackService : Service() {
         this.callback = callback
     }
 
+    @Suppress("DEPRECATION")
     private fun setupMediaSession() {
         mediaSession = MediaSession(this, "YouTubeShieldSession")
         mediaSession?.setCallback(object : MediaSession.Callback() {
@@ -74,6 +118,9 @@ class MediaPlaybackService : Service() {
                 }
             }
         })
+        
+        // Configurar banderas para compatibilidad con dispositivos más antiguos
+        mediaSession?.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS or MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS)
         mediaSession?.isActive = true
     }
 
@@ -129,16 +176,17 @@ class MediaPlaybackService : Service() {
         val playPauseIcon = if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
         val playPauseText = if (isPlaying) "Pausar" else "Reproducir"
 
-        val prevIntent = Intent(this, MediaPlaybackService::class.java).setAction("ACTION_PREV")
-        val playIntent = Intent(this, MediaPlaybackService::class.java).setAction("ACTION_PLAY_PAUSE")
-        val nextIntent = Intent(this, MediaPlaybackService::class.java).setAction("ACTION_NEXT")
-        val loopIntent = Intent(this, MediaPlaybackService::class.java).setAction("ACTION_LOOP")
+        // Crear intents para el BroadcastReceiver en lugar del servicio directamente
+        val prevIntent = Intent(ACTION_PREV)
+        val playIntent = Intent(if (isPlaying) ACTION_PAUSE else ACTION_PLAY)
+        val nextIntent = Intent(ACTION_NEXT)
+        val loopIntent = Intent(ACTION_LOOP)
 
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT else PendingIntent.FLAG_UPDATE_CURRENT
-        val pPrev = PendingIntent.getService(this, 1, prevIntent, flags)
-        val pPlay = PendingIntent.getService(this, 2, playIntent, flags)
-        val pNext = PendingIntent.getService(this, 3, nextIntent, flags)
-        val pLoop = PendingIntent.getService(this, 4, loopIntent, flags)
+        val pPrev = PendingIntent.getBroadcast(this, 1, prevIntent, flags)
+        val pPlay = PendingIntent.getBroadcast(this, 2, playIntent, flags)
+        val pNext = PendingIntent.getBroadcast(this, 3, nextIntent, flags)
+        val pLoop = PendingIntent.getBroadcast(this, 4, loopIntent, flags)
 
         val loopIndicatorText = if (isLooping) "🔂 Repetir canción activa" else "➡️ Reproducción normal"
 
@@ -172,24 +220,22 @@ class MediaPlaybackService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Enlazar los comandos que se envían directamente por intent al receptor
         val action = intent?.action
-        when (action) {
-            "ACTION_PLAY_PAUSE" -> {
-                if (mediaSession?.controller?.playbackState?.state == PlaybackState.STATE_PLAYING) {
-                    callback?.onPause()
-                } else {
-                    callback?.onPlay()
-                }
-            }
-            "ACTION_PREV" -> callback?.onPrevious()
-            "ACTION_NEXT" -> callback?.onNext()
-            "ACTION_LOOP" -> callback?.onToggleLoop()
+        if (action != null) {
+            val localBroadcastIntent = Intent(action)
+            sendBroadcast(localBroadcastIntent)
         }
-        return START_NOT_STICKY
+        return START_STICKY
     }
 
     override fun onDestroy() {
         super.onDestroy()
         mediaSession?.release()
+        try {
+            unregisterReceiver(mediaReceiver)
+        } catch (e: Exception) {
+            // Ignorar si no estaba registrado
+        }
     }
 }
