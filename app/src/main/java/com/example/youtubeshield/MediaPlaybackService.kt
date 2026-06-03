@@ -206,7 +206,11 @@ class MediaPlaybackService : Service() {
             .addAction(Notification.Action.Builder(android.R.drawable.ic_media_next, "Siguiente", pNext).build())
             .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_rotate, if (isLooping) "Bucle: SI" else "Bucle: NO", pLoop).build())
 
-        val mainIntent = Intent(this, MainActivity::class.java)
+        val mainIntent = Intent(this, MainActivity::class.java).apply {
+            action = Intent.ACTION_MAIN
+            addCategory(Intent.CATEGORY_LAUNCHER)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
         val pMain = PendingIntent.getActivity(this, 0, mainIntent, flags)
         notificationBuilder.setContentIntent(pMain)
 

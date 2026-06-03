@@ -145,7 +145,20 @@ class MainActivity : AppCompatActivity() {
 
             override fun onNext() {
                 runOnUiThread {
-                    webView.evaluateJavascript("var btn = document.querySelector('.ytp-next-button'); if(btn) { btn.click(); } else { window.history.forward(); }", null)
+                    val js = """
+                        (function() {
+                            var btn = document.querySelector('.ytp-next-button, .next-button, .ytm-next-button, [class*="next-button"]');
+                            if (btn) {
+                                btn.click();
+                                return;
+                            }
+                            var firstRecom = document.querySelector('ytm-compact-video-renderer a, ytm-video-with-context-renderer a, .compact-media-item-image, a[href*="/watch"]');
+                            if (firstRecom) {
+                                firstRecom.click();
+                            }
+                        })()
+                    """.trimIndent()
+                    webView.evaluateJavascript(js, null)
                 }
             }
 
@@ -266,6 +279,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupWebView() {
+        // Limpiar caché de WebView al iniciar para evitar anuncios cacheados
+        webView.clearCache(true)
+
         val settings = webView.settings
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
