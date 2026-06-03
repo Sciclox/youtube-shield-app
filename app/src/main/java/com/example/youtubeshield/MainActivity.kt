@@ -1,10 +1,13 @@
 package com.example.youtubeshield
 
 import android.content.Context
+import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -15,6 +18,7 @@ import android.widget.ImageButton
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.io.ByteArrayInputStream
 
@@ -35,6 +39,25 @@ class MainActivity : AppCompatActivity() {
     private var originalSystemUiVisibility = 0
     private var originalOrientation = 0
 
+    // Servicio en segundo plano
+    private var playbackService: MediaPlaybackService? = null
+    private var isBound = false
+    private val NOTIFICATION_PERMISSION_CODE = 1002
+
+    private val serviceConnection = object : android.content.ServiceConnection {
+        override fun onServiceConnected(name: android.content.ComponentName?, service: android.os.IBinder?) {
+            val binder = service as MediaPlaybackService.LocalBinder
+            playbackService = binder.getService()
+            isBound = true
+            setupServiceCallback()
+        }
+
+        override fun onServiceDisconnected(name: android.content.ComponentName?) {
+            playbackService = null
+            isBound = false
+        }
+    }
+
     // Runnable para inyección periódica de scripts de bloqueo
     private val adBlockRunnable = object : Runnable {
         override fun run() {
@@ -42,6 +65,16 @@ class MainActivity : AppCompatActivity() {
                 injectAdBlockScript()
             }
             adBlockHandler.postDelayed(this, 2000) // Re-inyecta cada 2 segundos
+        }
+    }
+
+    // Runnable para monitorear el estado del video de YouTube y actualizar la notificación
+    private val playbackMonitorRunnable = object : Runnable {
+        override fun run() {
+            if (isBound && playbackService != null) {
+                queryVideoState()
+            }
+            adBlockHandler.postDelayed(this, 1000) // Verifica cada 1 segundo
         }
     }
 
@@ -67,8 +100,116 @@ class MainActivity : AppCompatActivity() {
         setupWebView()
         updateShieldUI()
 
-        // Iniciar la inyección de script periódica
+        // Solicitar permisos de notificación en Android 13+
+        checkNotificationPermission()
+
+        // Iniciar y enlazar el servicio en segundo plano
+        val intent = Intent(this, MediaPlaybackService::class.java)
+        try {
+            startService(intent)
+            bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+        } catch (e: Exception) {
+            // Manejar excepciones de inicio de servicio en background
+        }
+
+        // Iniciar los runnables periódicos
         adBlockHandler.post(adBlockRunnable)
+        adBlockHandler.post(playbackMonitorRunnable)
+    }
+
+    private fun checkNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
+                    NOTIFICATION_PERMISSION_CODE
+                )
+            }
+        }
+    }
+
+    private fun setupServiceCallback() {
+        playbackService?.setPlaybackCallback(object : MediaPlaybackService.PlaybackCallback {
+            override fun onPlay() {
+                runOnUiThread {
+                    webView.evaluateJavascript("document.querySelector('video').play()", null)
+                }
+            }
+
+            override fun onPause() {
+                runOnUiThread {
+                    webView.evaluateJavascript("document.querySelector('video').pause()", null)
+                }
+            }
+
+            override fun onNext() {
+                runOnUiThread {
+                    webView.evaluateJavascript("var btn = document.querySelector('.ytp-next-button'); if(btn) { btn.click(); } else { window.history.forward(); }", null)
+                }
+            }
+
+            override fun onPrevious() {
+                runOnUiThread {
+                    webView.evaluateJavascript("window.history.back()", null)
+                }
+            }
+
+            override fun onToggleLoop() {
+                runOnUiThread {
+                    webView.evaluateJavascript(
+                        "(function() { var v = document.querySelector('video'); if(v) { v.loop = !v.loop; return v.loop; } return false; })()",
+                        ValueCallback { value ->
+                            val isLooping = value?.toBoolean() ?: false
+                            Toast.makeText(this@MainActivity, if (isLooping) "Repetir canción: ACTIVADO" else "Repetir canción: DESACTIVADO", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
+            }
+        })
+    }
+
+    private fun queryVideoState() {
+        val js = """
+            (function() {
+                var video = document.querySelector('video');
+                if (!video) return JSON.stringify({ title: "YouTube Shield", isPlaying: false, isLooping: false });
+                
+                var title = document.title;
+                title = title.replace(/^\(\d+\)\s+/, '');
+                if (title.endsWith(' - YouTube')) {
+                    title = title.substring(0, title.length - 10);
+                }
+                
+                return JSON.stringify({
+                    title: title || "YouTube Video",
+                    isPlaying: !video.paused && !video.ended,
+                    isLooping: video.loop || false
+                });
+            })()
+        """.trimIndent()
+
+        webView.evaluateJavascript(js) { result ->
+            if (result != null && result != "null" && result != "\"null\"") {
+                try {
+                    var cleanResult = result
+                    if (cleanResult.startsWith("\"") && cleanResult.endsWith("\"")) {
+                        cleanResult = cleanResult.substring(1, cleanResult.length - 1)
+                        cleanResult = cleanResult.replace("\\\"", "\"")
+                        cleanResult = cleanResult.replace("\\\\", "\\")
+                    }
+                    
+                    val json = org.json.JSONObject(cleanResult)
+                    val title = json.optString("title", "YouTube Shield")
+                    val isPlaying = json.optBoolean("isPlaying", false)
+                    val isLooping = json.optBoolean("isLooping", false)
+                    
+                    playbackService?.updateMetadata(title, isPlaying, isLooping)
+                } catch (e: Exception) {
+                    // Ignorar errores de parsing
+                }
+            }
+        }
     }
 
     private fun setupNavigationButtons() {
@@ -133,19 +274,11 @@ class MainActivity : AppCompatActivity() {
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
 
-        // Forzar tema oscuro en WebView si el celular lo soporta
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            // Algunas versiones de WebView permiten forzar el modo oscuro en el contenido
-            // Típicamente YouTube móvil detecta el modo oscuro del sistema si el user-agent es compatible
-        }
-
-        // Establecer un User Agent de navegador móvil moderno para evitar bloqueos
         settings.userAgentString = "Mozilla/5.0 (Linux; Android 13; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36"
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url.toString()
-                // Mantener la navegación dentro de la app para YouTube
                 if (url.contains("youtube.com") || url.contains("youtu.be")) {
                     return false
                 }
@@ -154,9 +287,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
                 val url = request?.url.toString()
-                // Si el escudo está activo, comprobar si es publicidad y bloquear
                 if (isShieldActive && AdBlocker.isAd(url)) {
-                    // Retorna una respuesta vacía
                     return WebResourceResponse(
                         "text/plain",
                         "utf-8",
@@ -193,7 +324,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Cargar YouTube inicialmente
         webView.loadUrl("https://m.youtube.com")
     }
 
@@ -239,7 +369,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun injectAdBlockScript() {
-        // Script CSS inyectable
         val cssRules = """
             #masthead-ad, 
             ytd-companion-ad-renderer, 
@@ -258,10 +387,8 @@ class MainActivity : AppCompatActivity() {
             }
         """.trimIndent().replace("\n", " ")
 
-        // Script JS inyectable
         val jsScript = """
             (function() {
-                // 1. Inyectar CSS si no está ya presente
                 if (!document.getElementById('shield-adblock-styles')) {
                     var style = document.createElement('style');
                     style.id = 'shield-adblock-styles';
@@ -270,8 +397,6 @@ class MainActivity : AppCompatActivity() {
                     document.head.appendChild(style);
                 }
 
-                // 2. Intentar omitir o acelerar anuncios de video inmediatamente
-                // Buscar botón de omitir anuncios de YouTube (móvil y escritorio)
                 var skipButtons = document.querySelectorAll('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-slot, .ytp-ad-skip-button-container');
                 skipButtons.forEach(function(btn) {
                     if (btn) {
@@ -280,21 +405,19 @@ class MainActivity : AppCompatActivity() {
                     }
                 });
 
-                // Si se está reproduciendo un anuncio (clases .ad-showing o .ad-interrupting)
                 var video = document.querySelector('video');
                 var isAdPlaying = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay');
                 if (video && isAdPlaying) {
                     video.muted = true;
-                    video.playbackRate = 16.0; // Acelerar al máximo para terminarlo rápido
+                    video.playbackRate = 16.0;
                     if (!isNaN(video.duration) && isFinite(video.duration)) {
-                        video.currentTime = video.duration - 0.1; // Saltar al final directamente
+                        video.currentTime = video.duration - 0.1;
                     }
                     console.log('Shield: Anuncio detectado y acelerado.');
                 }
             })();
         """.trimIndent()
 
-        // Ejecutar javascript en el WebView
         webView.evaluateJavascript(jsScript, null)
         injectVisibilityOverride()
     }
@@ -329,7 +452,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        // Permitir volver atrás en el historial del WebView con el botón físico de Android
         if (customView != null) {
             hideCustomView()
         } else if (webView.canGoBack()) {
@@ -341,7 +463,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // Limpiar el handler para evitar fugas de memoria
         adBlockHandler.removeCallbacks(adBlockRunnable)
+        adBlockHandler.removeCallbacks(playbackMonitorRunnable)
+        if (isBound) {
+            unbindService(serviceConnection)
+            isBound = false
+        }
     }
 }
