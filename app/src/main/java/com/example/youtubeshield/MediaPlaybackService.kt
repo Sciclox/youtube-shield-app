@@ -6,7 +6,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.media.MediaMetadata
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
@@ -76,7 +78,7 @@ class MediaPlaybackService : Service() {
         }
 
         // Mostrar de inmediato una notificación por defecto para cumplir con Android 14
-        showNotification("YouTube Shield", false, false, BitmapFactory.decodeResource(resources, R.drawable.ic_app_icon))
+        showNotification("YouTube Shield", false, false, drawableToBitmap(R.drawable.ic_app_icon))
     }
 
     override fun onBind(intent: Intent?): IBinder {
@@ -150,7 +152,7 @@ class MediaPlaybackService : Service() {
 
         mediaSession?.setPlaybackState(stateBuilder.build())
 
-        val displayBitmap = thumbnail ?: BitmapFactory.decodeResource(resources, R.drawable.ic_app_icon)
+        val displayBitmap = thumbnail ?: drawableToBitmap(R.drawable.ic_app_icon)
 
         val metadata = MediaMetadata.Builder()
             .putString(MediaMetadata.METADATA_KEY_TITLE, title)
@@ -244,5 +246,18 @@ class MediaPlaybackService : Service() {
         } catch (e: Exception) {
             // Ignorar si no estaba registrado
         }
+    }
+
+    private fun drawableToBitmap(drawableId: Int): Bitmap {
+        val drawable = ContextCompat.getDrawable(this, drawableId) ?: return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+        val bitmap = Bitmap.createBitmap(
+            drawable.intrinsicWidth.coerceAtLeast(1),
+            drawable.intrinsicHeight.coerceAtLeast(1),
+            Bitmap.Config.ARGB_8888
+        )
+        val canvas = Canvas(bitmap)
+        drawable.setBounds(0, 0, canvas.width, canvas.height)
+        drawable.draw(canvas)
+        return bitmap
     }
 }
