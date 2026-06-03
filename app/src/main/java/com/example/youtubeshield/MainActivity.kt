@@ -382,6 +382,9 @@ class MainActivity : AppCompatActivity() {
             .companion-ad-container, 
             ytd-promoted-sparkles-web-renderer, 
             ytd-display-ad-renderer,
+            .ad-showing,
+            .ad-interrupting,
+            .ytp-ad-player-overlay,
             #player-ads { 
                 display: none !important; 
             }
@@ -389,6 +392,7 @@ class MainActivity : AppCompatActivity() {
 
         val jsScript = """
             (function() {
+                // 1. Inyectar estilos CSS
                 if (!document.getElementById('shield-adblock-styles')) {
                     var style = document.createElement('style');
                     style.id = 'shield-adblock-styles';
@@ -397,23 +401,41 @@ class MainActivity : AppCompatActivity() {
                     document.head.appendChild(style);
                 }
 
-                var skipButtons = document.querySelectorAll('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-slot, .ytp-ad-skip-button-container');
-                skipButtons.forEach(function(btn) {
-                    if (btn) {
-                        btn.click();
-                        console.log('Shield: Botón de omitir anuncio clickeado.');
-                    }
-                });
+                // 2. Función omitidora principal
+                var skipAds = function() {
+                    var skipButtons = document.querySelectorAll('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-slot, .ytp-ad-skip-button-container');
+                    skipButtons.forEach(function(btn) {
+                        if (btn) {
+                            btn.click();
+                            console.log('Shield: Botón omitir clickeado.');
+                        }
+                    });
 
-                var video = document.querySelector('video');
-                var isAdPlaying = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay');
-                if (video && isAdPlaying) {
-                    video.muted = true;
-                    video.playbackRate = 16.0;
-                    if (!isNaN(video.duration) && isFinite(video.duration)) {
-                        video.currentTime = video.duration - 0.1;
+                    var video = document.querySelector('video');
+                    var isAdPlaying = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay');
+                    if (video && isAdPlaying) {
+                        video.muted = true;
+                        video.playbackRate = 16.0;
+                        if (!isNaN(video.duration) && isFinite(video.duration)) {
+                            video.currentTime = video.duration - 0.1;
+                        }
+                        console.log('Shield: Anuncio omitido / acelerado.');
                     }
-                    console.log('Shield: Anuncio detectado y acelerado.');
+                };
+
+                // Ejecutar inmediatamente
+                skipAds();
+
+                // 3. MutationObserver para interceptación en microsegundos
+                if (!window.shieldObserver) {
+                    window.shieldObserver = new MutationObserver(function(mutations) {
+                        skipAds();
+                    });
+                    window.shieldObserver.observe(document.body || document.documentElement, {
+                        childList: true,
+                        subtree: true
+                    });
+                    console.log('Shield: MutationObserver activo.');
                 }
             })();
         """.trimIndent()
@@ -425,6 +447,20 @@ class MainActivity : AppCompatActivity() {
     private fun injectVisibilityOverride() {
         val js = """
             (function() {
+                // 1. Bloquear Service Workers
+                if (typeof navigator.serviceWorker !== 'undefined') {
+                    try {
+                        Object.defineProperty(navigator, 'serviceWorker', {
+                            get: function() { return undefined; },
+                            configurable: true
+                        });
+                        console.log('Shield: ServiceWorker blocked.');
+                    } catch (e) {
+                        console.error('Shield: Failed to block ServiceWorker', e);
+                    }
+                }
+
+                // 2. Mock de visibilidad
                 if (!window.shieldVisibilityOverridden) {
                     try {
                         Object.defineProperty(document, 'visibilityState', {
@@ -440,15 +476,46 @@ class MainActivity : AppCompatActivity() {
                         };
                         window.addEventListener('visibilitychange', blockVisibilityEvent, true);
                         document.addEventListener('visibilitychange', blockVisibilityEvent, true);
+                        
+                        // Evitar detención por foco
+                        window.addEventListener('blur', function(e) { e.stopImmediatePropagation(); }, true);
+                        
                         window.shieldVisibilityOverridden = true;
                         console.log('Shield: Visibility API overridden successfully.');
                     } catch (e) {
                         console.error('Shield: visibility override failed', e);
                     }
                 }
+
+                // 3. Evitar que YouTube pause el video por el sistema
+                if (!window.shieldPauseOverridden) {
+                    try {
+                        const originalPause = HTMLVideoElement.prototype.pause;
+                        HTMLVideoElement.prototype.pause = function() {
+                            if (window.shieldIgnorePause) {
+                                console.log('Shield: Pause call ignored in background.');
+                                return;
+                            }
+                            return originalPause.apply(this, arguments);
+                        };
+                        window.shieldPauseOverridden = true;
+                    } catch (e) {
+                        console.error('Shield: Failed to override pause', e);
+                    }
+                }
             })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        webView.evaluateJavascript("window.shieldIgnorePause = false;", null)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        webView.evaluateJavascript("window.shieldIgnorePause = true;", null)
     }
 
     override fun onBackPressed() {

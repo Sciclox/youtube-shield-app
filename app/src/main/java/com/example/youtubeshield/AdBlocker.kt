@@ -39,6 +39,20 @@ object AdBlocker {
     fun isAd(url: String): Boolean {
         if (!isLoaded) return false
         try {
+            val lowerUrl = url.lowercase()
+            // Detectar anuncios internos de YouTube servidos desde su propio dominio
+            if (lowerUrl.contains("youtube.com/pagead") ||
+                lowerUrl.contains("youtube.com/ptracking") ||
+                lowerUrl.contains("youtube.com/api/stats/ads") ||
+                lowerUrl.contains("youtube.com/api/stats/qoe") ||
+                lowerUrl.contains("/pagead/gen_204") ||
+                lowerUrl.contains("doubleclick.net") ||
+                lowerUrl.contains("googleads") ||
+                lowerUrl.contains("googlesyndication")
+            ) {
+                return true
+            }
+
             val uri = Uri.parse(url)
             val host = uri.host ?: return false
             return isHostAd(host)
