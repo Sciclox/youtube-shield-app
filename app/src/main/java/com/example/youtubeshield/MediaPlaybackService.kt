@@ -7,7 +7,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.media.MediaMetadata
 import android.media.session.MediaSession
@@ -15,7 +14,6 @@ import android.media.session.PlaybackState
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
-import android.util.Log
 import androidx.core.content.ContextCompat
 
 class MediaPlaybackService : Service() {
@@ -23,6 +21,13 @@ class MediaPlaybackService : Service() {
     private val binder = LocalBinder()
     private var mediaSession: MediaSession? = null
     private var callback: PlaybackCallback? = null
+
+    // Estado actual utilizado para reconstruir la notificación
+    private var currentTitle: String = "YouTube Shield"
+    private var currentIsPlaying: Boolean = false
+    private var currentIsLooping: Boolean = false
+    private var currentThumbnailBitmap: Bitmap? = null
+    private var currentDominantColor: Int? = null
 
     // Acciones de intent para el BroadcastReceiver
     companion object {
@@ -70,7 +75,7 @@ class MediaPlaybackService : Service() {
             addAction(ACTION_NEXT)
             addAction(ACTION_LOOP)
         }
-        
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(mediaReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
@@ -121,13 +126,19 @@ class MediaPlaybackService : Service() {
                 }
             }
         })
-        
+
         // Configurar banderas para compatibilidad con dispositivos más antiguos
         mediaSession?.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS or MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS)
         mediaSession?.isActive = true
     }
 
     fun updateMetadata(title: String, isPlaying: Boolean, isLooping: Boolean, thumbnail: android.graphics.Bitmap? = null) {
+        // Guardar estado actual
+        currentTitle = title
+        currentIsPlaying = isPlaying
+        currentIsLooping = isLooping
+        currentThumbnailBitmap = thumbnail
+
         val stateBuilder = PlaybackState.Builder()
             .setActions(
                 PlaybackState.ACTION_PLAY or
@@ -162,8 +173,19 @@ class MediaPlaybackService : Service() {
             .build()
         mediaSession?.setMetadata(metadata)
 
-        val dominantColor = getDominantColor(displayBitmap)
+        // Usar color previamente calculado si existe, sino calcular a partir de la miniatura
+        val dominantColor = currentDominantColor ?: getDominantColor(displayBitmap)
         showNotification(title, isPlaying, isLooping, displayBitmap, dominantColor)
+    }
+
+    /**
+     * Permite que la actividad principal envíe un color calculado (p. ej. a partir de la miniatura)
+     * y actualice inmediatamente la notificación usando ese color.
+     */
+    fun setNotificationColor(color: Int) {
+        currentDominantColor = color
+        val displayBitmap = currentThumbnailBitmap ?: drawableToBitmap(R.drawable.ic_app_icon)
+        showNotification(currentTitle, currentIsPlaying, currentIsLooping, displayBitmap, color)
     }
 
     private fun showNotification(title: String, isPlaying: Boolean, isLooping: Boolean, thumbnail: android.graphics.Bitmap, dominantColor: Int) {
@@ -214,10 +236,10 @@ class MediaPlaybackService : Service() {
                 .setMediaSession(mediaSession?.sessionToken)
                 .setShowActionsInCompactView(0, 1, 2)
         )
-        .addAction(Notification.Action.Builder(android.R.drawable.ic_media_previous, "Anterior", pPrev).build())
-        .addAction(Notification.Action.Builder(playPauseIcon, playPauseText, pPlay).build())
-        .addAction(Notification.Action.Builder(android.R.drawable.ic_media_next, "Siguiente", pNext).build())
-        .addAction(Notification.Action.Builder(notificationLoopIcon, if (isLooping) "Bucle: 1" else "Bucle: Normal", pLoop).build())
+            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_previous, "Anterior", pPrev).build())
+            .addAction(Notification.Action.Builder(playPauseIcon, playPauseText, pPlay).build())
+            .addAction(Notification.Action.Builder(android.R.drawable.ic_media_next, "Siguiente", pNext).build())
+            .addAction(Notification.Action.Builder(notificationLoopIcon, if (isLooping) "Bucle: 1" else "Bucle: Normal", pLoop).build())
 
         val mainIntent = Intent(this, MainActivity::class.java).apply {
             action = Intent.ACTION_MAIN
