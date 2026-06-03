@@ -313,6 +313,16 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                super.onProgressChanged(view, newProgress)
+                if (newProgress >= 30) {
+                    injectVisibilityOverride()
+                    if (isShieldActive) {
+                        injectAdBlockScript()
+                    }
+                }
+            }
+
             override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
                 if (view != null && callback != null) {
                     showCustomView(view, callback)

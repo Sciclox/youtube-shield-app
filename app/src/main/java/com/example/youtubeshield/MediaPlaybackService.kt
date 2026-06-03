@@ -176,11 +176,11 @@ class MediaPlaybackService : Service() {
         val playPauseIcon = if (isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
         val playPauseText = if (isPlaying) "Pausar" else "Reproducir"
 
-        // Crear intents para el BroadcastReceiver en lugar del servicio directamente
-        val prevIntent = Intent(ACTION_PREV)
-        val playIntent = Intent(if (isPlaying) ACTION_PAUSE else ACTION_PLAY)
-        val nextIntent = Intent(ACTION_NEXT)
-        val loopIntent = Intent(ACTION_LOOP)
+        // Crear intents explícitos para el BroadcastReceiver
+        val prevIntent = Intent(ACTION_PREV).setPackage(packageName)
+        val playIntent = Intent(if (isPlaying) ACTION_PAUSE else ACTION_PLAY).setPackage(packageName)
+        val nextIntent = Intent(ACTION_NEXT).setPackage(packageName)
+        val loopIntent = Intent(ACTION_LOOP).setPackage(packageName)
 
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT else PendingIntent.FLAG_UPDATE_CURRENT
         val pPrev = PendingIntent.getBroadcast(this, 1, prevIntent, flags)
@@ -223,7 +223,7 @@ class MediaPlaybackService : Service() {
         // Enlazar los comandos que se envían directamente por intent al receptor
         val action = intent?.action
         if (action != null) {
-            val localBroadcastIntent = Intent(action)
+            val localBroadcastIntent = Intent(action).setPackage(packageName)
             sendBroadcast(localBroadcastIntent)
         }
         return START_STICKY
