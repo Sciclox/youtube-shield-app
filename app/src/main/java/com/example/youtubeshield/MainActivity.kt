@@ -72,7 +72,11 @@ class MainActivity : AppCompatActivity() {
     private val adBlockRunnable = object : Runnable {
         override fun run() {
             if (isShieldActive) {
-                injectAdBlockScript()
+                val currentUrl = webView.url ?: ""
+                val isWatchOrShort = currentUrl.contains("watch?v=") || currentUrl.contains("/shorts/")
+                if (isWatchOrShort) {
+                    injectAdBlockScript()
+                }
             }
             adBlockHandler.postDelayed(this, 2000) // Re-inyecta cada 2 segundos
         }
@@ -691,23 +695,28 @@ class MainActivity : AppCompatActivity() {
                     }
                     window.shieldLastSkipTime = Date.now();
 
-                    var skipButtons = document.querySelectorAll('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-slot, .ytp-ad-skip-button-container, [class*=\"skip-button\"]');
+                    // Selector rápido de botones de omitir anuncio
+                    var skipButtons = document.querySelectorAll('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-slot, .ytp-ad-skip-button-container, .ytm-ad-skip-button, .ytm-ad-skip-button-container, .ytp-skip-ad-button, .ytp-ad-skip-button-text');
                     skipButtons.forEach(function(btn) {
                         if (btn) {
                             btn.click();
+                            var clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true });
+                            btn.dispatchEvent(clickEvent);
                             console.log('Shield: Botón omitir clickeado.');
                         }
                     });
 
                     var video = document.querySelector('video');
                     if (video) {
-                        var isAdPlaying = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay, .ytp-ad-player-overlay-layout, .ytm-ad-player-overlay, .ytm-ad-player-overlay-layout, .ytm-ad-overlay-container');
+                        // Selector expandido y optimizado para detectar anuncios en reproducción
+                        var isAdPlaying = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay, .ytp-ad-player-overlay-layout, .ytm-ad-player-overlay, .ytm-ad-player-overlay-layout, .ytm-ad-overlay-container, .ytp-ad-text, .ytp-ad-preview-text, .ytm-ad-preview-text, .ad-preview-text, .ad-text, .video-ads.ytp-ad-module');
                         if (isAdPlaying) {
                             video.muted = true;
                             video.playbackRate = 16.0;
                             if (!isNaN(video.duration) && isFinite(video.duration)) {
                                 video.currentTime = video.duration - 0.1;
                             }
+                            video.play().catch(function(e){});
                             console.log('Shield: Anuncio omitido / acelerado.');
                         } else {
                             // Video normal: Asegurar volumen activado y loop si corresponde
@@ -748,16 +757,13 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
 
-                    // Forzar click en el botón de desmutear/activar sonido de YouTube si está silenciado
+                    // Forzar click en el botón de desmutear de YouTube si está silenciado
                     if (!isAdPlaying) {
-                        var unmuteBtns = document.querySelectorAll('.ytp-unmute, .ytp-unmute-box, .ytm-mute-button, [class*=\"unmute\"], [aria-label*=\"unmute\"], [aria-label*=\"Unmute\"]');
+                        var unmuteBtns = document.querySelectorAll('.ytp-unmute, .ytp-unmute-box, .ytm-mute-button, .ytm-unmute-button, [aria-label="Unmute"], [aria-label="unmute"], [aria-label="Desmutear"], [aria-label="desmutear"]');
                         unmuteBtns.forEach(function(btn) {
                             if (btn) {
-                                var label = (btn.getAttribute('aria-label') || btn.innerText || btn.className || "").toLowerCase();
-                                if (label.includes('unmute')) {
-                                    btn.click();
-                                    console.log('Shield: Click en botón de desmutear de YouTube.');
-                                }
+                                btn.click();
+                                console.log('Shield: Click en botón de desmutear de YouTube.');
                             }
                         });
                     }
@@ -766,16 +772,25 @@ class MainActivity : AppCompatActivity() {
                 // Ejecutar inmediatamente
                 skipAds();
 
-                // 3. MutationObserver para interceptación en microsegundos
-                if (!window.shieldObserver) {
-                    window.shieldObserver = new MutationObserver(function(mutations) {
-                        skipAds();
-                    });
-                    window.shieldObserver.observe(document.body || document.documentElement, {
-                        childList: true,
-                        subtree: true
-                    });
-                    console.log('Shield: MutationObserver activo.');
+                // 3. MutationObserver para interceptación en watch/shorts (desconectar en feed para rendimiento)
+                var isWatchOrShort = window.location.href.includes('watch?v=') || window.location.href.includes('/shorts/');
+                if (isWatchOrShort) {
+                    if (!window.shieldObserver) {
+                        window.shieldObserver = new MutationObserver(function(mutations) {
+                            skipAds();
+                        });
+                        window.shieldObserver.observe(document.body || document.documentElement, {
+                            childList: true,
+                            subtree: true
+                        });
+                        console.log('Shield: MutationObserver activo.');
+                    }
+                } else {
+                    if (window.shieldObserver) {
+                        window.shieldObserver.disconnect();
+                        window.shieldObserver = null;
+                        console.log('Shield: MutationObserver desactivado en feed.');
+                    }
                 }
             })();
         """.trimIndent()
@@ -1017,7 +1032,7 @@ class MainActivity : AppCompatActivity() {
                                     return originalGet.call(this);
                                 },
                                 set: function(val) {
-                                    var isAd = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay, .ytp-ad-player-overlay-layout, .ytm-ad-player-overlay, .ytm-ad-player-overlay-layout, .ytm-ad-overlay-container');
+                                    var isAd = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay, .ytp-ad-player-overlay-layout, .ytm-ad-player-overlay, .ytm-ad-player-overlay-layout, .ytm-ad-overlay-container, .ytp-ad-text, .ytp-ad-preview-text, .ytm-ad-preview-text, .ad-preview-text, .ad-text, .video-ads.ytp-ad-module');
                                     if (isAd) {
                                         console.log('Shield: Forcing playbackRate to 16.0 during ad.');
                                         return originalSet.call(this, 16.0);
