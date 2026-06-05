@@ -75,7 +75,7 @@ class MainActivity : AppCompatActivity() {
     // Runnable para inyección periódica de scripts de bloqueo
     private val adBlockRunnable = object : Runnable {
         override fun run() {
-            if (isShieldActive) {
+            if (isShieldActive && isDynamicShieldActive) {
                 val currentUrl = webView.url ?: ""
                 val isWatchOrShort = currentUrl.contains("watch?v=") || currentUrl.contains("/shorts/")
                 if (isWatchOrShort) {
@@ -89,9 +89,7 @@ class MainActivity : AppCompatActivity() {
     // Runnable para monitorear el estado del video de YouTube y actualizar la notificación
     private val playbackMonitorRunnable = object : Runnable {
         override fun run() {
-            if (isBound && playbackService != null) {
-                queryVideoState()
-            }
+            queryVideoState()
             adBlockHandler.postDelayed(this, 1000) // Verifica cada 1 segundo
         }
     }
@@ -299,88 +297,128 @@ class MainActivity : AppCompatActivity() {
         updateMediaPlaybackGestureSetting(currentUrl)
 
         val isWatchOrShort = currentUrl.contains("watch?v=") || currentUrl.contains("/shorts/")
-        if (!isWatchOrShort) {
+        
+        var currentVideoId: String? = null
+        if (isWatchOrShort) {
+            if (currentUrl.contains("watch?v=")) {
+                try {
+                    val uri = Uri.parse(currentUrl)
+                    val videoId = uri.getQueryParameter("v")
+                    if (videoId != null) {
+                        if (videoId != lastVideoId) {
+                            lastVideoId = videoId
+                            isDynamicShieldActive = false
+                            runOnUiThread {
+                                injectVisibilityOverride()
+                            }
+                        }
+                        currentVideoId = videoId
+                    }
+                } catch (e: Exception) {
+                    // Ignorar error al parsear URL
+                }
+            } else if (currentUrl.contains("/shorts/")) {
+                try {
+                    val segments = Uri.parse(currentUrl).pathSegments
+                    val shortId = segments.lastOrNull()
+                    if (shortId != null) {
+                        if (shortId != lastVideoId) {
+                            lastVideoId = shortId
+                            isDynamicShieldActive = false
+                            runOnUiThread {
+                                injectVisibilityOverride()
+                            }
+                        }
+                        currentVideoId = shortId
+                    }
+                } catch (e: Exception) {
+                    // Ignorar
+                }
+            }
+
+            // Descargar miniatura si hay un video activo nuevo
+            if (currentVideoId != null) {
+                if (currentVideoId != loadedThumbnailVideoId) {
+                    loadedThumbnailVideoId = currentVideoId
+                    currentThumbnail = null
+                    fetchThumbnail(currentVideoId)
+                }
+            } else {
+                loadedThumbnailVideoId = null
+                currentThumbnail = null
+            }
+        } else {
             if (lastVideoId != null || loadedThumbnailVideoId != null) {
                 lastVideoId = null
                 loadedThumbnailVideoId = null
                 currentThumbnail = null
                 playbackService?.updateMetadata("YouTube Shield", false, isLoopEnabled, null, 0L, 0L)
             }
-            return
-        }
-
-        var currentVideoId: String? = null
-        if (currentUrl.contains("watch?v=")) {
-            try {
-                val uri = Uri.parse(currentUrl)
-                val videoId = uri.getQueryParameter("v")
-                if (videoId != null) {
-                    if (videoId != lastVideoId) {
-                        lastVideoId = videoId
-                        isDynamicShieldActive = false
-                        runOnUiThread {
-                            injectVisibilityOverride()
-                        }
-                    }
-                    currentVideoId = videoId
-                }
-            } catch (e: Exception) {
-                // Ignorar error al parsear URL
-            }
-        } else if (currentUrl.contains("/shorts/")) {
-            try {
-                val segments = Uri.parse(currentUrl).pathSegments
-                val shortId = segments.lastOrNull()
-                if (shortId != null) {
-                    if (shortId != lastVideoId) {
-                        lastVideoId = shortId
-                        isDynamicShieldActive = false
-                        runOnUiThread {
-                            injectVisibilityOverride()
-                        }
-                    }
-                    currentVideoId = shortId
-                }
-            } catch (e: Exception) {
-                // Ignorar
-            }
-        }
-
-        // Descargar miniatura si hay un video activo nuevo
-        if (currentVideoId != null) {
-            if (currentVideoId != loadedThumbnailVideoId) {
-                loadedThumbnailVideoId = currentVideoId
-                currentThumbnail = null
-                fetchThumbnail(currentVideoId)
-            }
-        } else {
-            loadedThumbnailVideoId = null
-            currentThumbnail = null
         }
 
         val js = """
             (function() {
                 var video = document.querySelector('video');
                 
-                // Extraer lista de videos recomendados / playlist de YouTube Mobile
-                var items = document.querySelectorAll('ytm-compact-video-renderer, ytm-playlist-panel-video-renderer, .compact-media-item');
+                // Extraer lista de videos recomendados / playlist / home feed de YouTube Mobile
+                var items = document.querySelectorAll('ytm-media-item, ytm-compact-video-renderer, ytm-playlist-panel-video-renderer, ytm-video-with-context-renderer, ytm-rich-item-renderer, .compact-media-item');
                 var playlist = [];
+                var seenUrls = new Set();
+
                 items.forEach(function(item) {
-                    var link = item.querySelector('a[href*="/watch"]');
-                    var titleEl = item.querySelector('.compact-media-item-headline, .playlist-panel-video-title');
-                    var channelEl = item.querySelector('.compact-media-item-channel-name, .playlist-panel-video-owner');
+                    var link = item.querySelector('a[href*="/watch"], a[href*="watch?v="]');
+                    var titleEl = item.querySelector('.media-item-title, .compact-media-item-headline, .playlist-panel-video-title, h3, h4, [class*="title"]');
+                    var channelEl = item.querySelector('.media-item-subtitle, .compact-media-item-channel-name, .playlist-panel-video-owner, [class*="channel"], [class*="owner"], [class*="subtitle"]');
+                    
                     if (link && titleEl) {
-                        var titleText = titleEl.textContent || titleEl.innerText || "";
-                        var channelText = channelEl ? (channelEl.textContent || channelEl.innerText || "") : "";
-                        playlist.push({
-                            title: titleText.trim(),
-                            url: link.getAttribute('href') || link.href,
-                            channel: channelText.trim()
-                        });
+                        var href = link.getAttribute('href') || link.href || "";
+                        if (href && !seenUrls.has(href)) {
+                            seenUrls.add(href);
+                            var titleText = (titleEl.textContent || titleEl.innerText || "").trim();
+                            var channelText = channelEl ? (channelEl.textContent || channelEl.innerText || "").trim() : "";
+                            if (channelText.includes('\n')) {
+                                channelText = channelText.split('\n')[0].trim();
+                            }
+                            if (titleText && href) {
+                                playlist.push({
+                                    title: titleText,
+                                    url: href,
+                                    channel: channelText
+                                });
+                            }
+                        }
                     }
                 });
 
-                if (!video) return JSON.stringify({ title: "YouTube Shield", isPlaying: false, position: 0, duration: 0, playlist: playlist.slice(0, 10) });
+                // Fallback por si no encuentra elementos estructurados
+                if (playlist.length === 0) {
+                    var links = document.querySelectorAll('a[href*="/watch"], a[href*="watch?v="]');
+                    links.forEach(function(link) {
+                        var href = link.getAttribute('href') || link.href || "";
+                        if (href && !seenUrls.has(href)) {
+                            seenUrls.add(href);
+                            var titleText = "";
+                            var titleEl = link.querySelector('h3, h4, span, [class*="title"]');
+                            if (titleEl) {
+                                titleText = titleEl.textContent || titleEl.innerText || "";
+                            } else {
+                                titleText = link.textContent || link.innerText || "";
+                            }
+                            titleText = titleText.replace(/\s+/g, ' ').trim();
+                            if (titleText && titleText.length > 5) {
+                                playlist.push({
+                                    title: titleText,
+                                    url: href,
+                                    channel: ""
+                                });
+                            }
+                        }
+                    });
+                }
+
+                var slicedPlaylist = playlist.slice(0, 15);
+
+                if (!video) return JSON.stringify({ title: "YouTube Shield", isPlaying: false, position: 0, duration: 0, playlist: slicedPlaylist });
                 
                 var title = document.title;
                 title = title.replace(/^\(\d+\)\s+/, '');
@@ -396,7 +434,7 @@ class MainActivity : AppCompatActivity() {
                     isPlaying: !video.paused && !video.ended,
                     position: posMs,
                     duration: durMs,
-                    playlist: playlist.slice(0, 10)
+                    playlist: slicedPlaylist
                 });
             })()
         """.trimIndent()
@@ -448,7 +486,9 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                     
-                    playbackService?.updateMetadata(title, isPlaying, isLoopEnabled, currentThumbnail, position, duration)
+                    if (isWatchOrShort) {
+                        playbackService?.updateMetadata(title, isPlaying, isLoopEnabled, currentThumbnail, position, duration)
+                    }
                 } catch (e: Exception) {
                     // Ignorar errores de parsing
                 }
@@ -645,7 +685,7 @@ class MainActivity : AppCompatActivity() {
                 updateMediaPlaybackGestureSetting(cleanUrl)
                 injectVisibilityOverride()
                 val isWatchOrShort = cleanUrl.contains("watch?v=") || cleanUrl.contains("/shorts/")
-                if (isShieldActive && isWatchOrShort) {
+                if (isShieldActive && isWatchOrShort && isDynamicShieldActive) {
                     injectAdBlockScript()
                 }
             }
@@ -658,7 +698,7 @@ class MainActivity : AppCompatActivity() {
                     injectVisibilityOverride()
                     val activeUrl = webView.url ?: ""
                     val isWatchOrShort = activeUrl.contains("watch?v=") || activeUrl.contains("/shorts/")
-                    if (isShieldActive && isWatchOrShort) {
+                    if (isShieldActive && isWatchOrShort && isDynamicShieldActive) {
                         injectAdBlockScript()
                     }
                 }
