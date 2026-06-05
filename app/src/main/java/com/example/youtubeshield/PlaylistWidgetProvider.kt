@@ -20,6 +20,7 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
                 data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
             }
             views.setRemoteAdapter(R.id.widgetListView, serviceIntent)
+            views.setEmptyView(R.id.widgetListView, R.id.widgetEmptyView)
 
             // Intent de plantilla para capturar los clics en los elementos de la lista y abrir MainActivity
             val clickIntent = Intent(context, MainActivity::class.java).apply {

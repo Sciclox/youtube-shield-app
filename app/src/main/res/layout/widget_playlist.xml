@@ -4,47 +4,121 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@drawable/widget_background"
-    android:padding="8dp">
+    android:padding="12dp">
 
-    <!-- Cabecera -->
+    <!-- Cabecera Premium -->
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="8dp"
+        android:layout_marginBottom="10dp"
         android:paddingStart="4dp"
         android:paddingEnd="4dp">
 
-        <TextView
-            android:id="@+id/widgetTitle"
+        <!-- Contenedor del título con indicador de estado -->
+        <LinearLayout
+            android:id="@+id/titleContainer"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentStart="true"
             android:layout_centerVertical="true"
-            android:text="YouTube Shield"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
+            <!-- Pequeño punto verde de estado activo -->
+            <View
+                android:layout_width="6dp"
+                android:layout_height="6dp"
+                android:layout_marginEnd="6dp"
+                android:background="@android:color/holo_green_light"
+                android:backgroundTint="@android:color/holo_green_light"
+                android:layout_gravity="center_vertical" />
+
+            <TextView
+                android:id="@+id/widgetTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="YouTube Shield"
+                android:textColor="#F3F3F5"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Badge de Playlist en color degradado rojo -->
         <TextView
             android:id="@+id/widgetSubtitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_toEndOf="@id/widgetTitle"
+            android:layout_toEndOf="@id/titleContainer"
             android:layout_centerVertical="true"
-            android:layout_marginStart="6dp"
-            android:text="Playlist"
-            android:textColor="#FF4444"
-            android:textSize="11sp"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/widget_badge_background"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="2dp"
+            android:text="PLAYLIST"
+            android:textColor="#FFFFFF"
+            android:textSize="9sp"
             android:textStyle="bold" />
     </RelativeLayout>
 
-    <!-- Lista de videos -->
-    <ListView
-        android:id="@+id/widgetListView"
+    <!-- Línea divisora sutil -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#2E2E32"
+        android:layout_marginBottom="4dp" />
+
+    <!-- Contenedor de lista y vista vacía -->
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:divider="#2D2D2D"
-        android:dividerHeight="1dp" />
+        android:layout_weight="1">
+
+        <!-- Lista de videos -->
+        <ListView
+            android:id="@+id/widgetListView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:divider="#242426"
+            android:dividerHeight="1dp" />
+
+        <!-- Vista vacía premium -->
+        <LinearLayout
+            android:id="@+id/widgetEmptyView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:visibility="gone">
+
+            <!-- Icono de escudo sutil -->
+            <ImageView
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@drawable/ic_shield"
+                android:tint="#4C4C50"
+                android:contentDescription="Escudo"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Sin videos en la lista"
+                android:textColor="#F3F3F5"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:gravity="center" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Abre un video en YouTube Shield para cargarlos aquí."
+                android:textColor="#8E8E93"
+                android:textSize="10sp"
+                android:layout_marginTop="4dp"
+                android:gravity="center" />
+        </LinearLayout>
+
+    </FrameLayout>
 
 </LinearLayout>
