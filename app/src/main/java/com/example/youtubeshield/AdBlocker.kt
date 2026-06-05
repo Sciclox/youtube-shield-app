@@ -11,6 +11,7 @@ object AdBlocker {
     private const val TAG = "AdBlocker"
     private val blockedDomains = HashSet<String>()
     private var isLoaded = false
+    private val hostCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
 
     fun init(context: Context) {
         if (isLoaded) return
@@ -57,8 +58,14 @@ object AdBlocker {
             }
 
             val uri = Uri.parse(url)
-            val host = uri.host ?: return false
-            val isHostBlocked = isHostAd(host)
+            val host = uri.host?.lowercase() ?: return false
+            
+            var isHostBlocked = hostCache[host]
+            if (isHostBlocked == null) {
+                isHostBlocked = isHostAd(host)
+                hostCache[host] = isHostBlocked
+            }
+
             if (isHostBlocked) {
                 Log.d(TAG, "Bloqueado por host: $host")
             }

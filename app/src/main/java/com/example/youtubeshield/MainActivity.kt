@@ -126,7 +126,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Iniciar los runnables periódicos
-        adBlockHandler.post(adBlockRunnable)
         adBlockHandler.post(playbackMonitorRunnable)
         setupSplashGif()
     }
@@ -294,10 +293,11 @@ class MainActivity : AppCompatActivity() {
                     if (videoId != lastVideoId) {
                         lastVideoId = videoId
                         runOnUiThread {
-                            // Recargar el WebView para forzar la inyección limpia del bloqueador en el nuevo video
-                            webView.reload()
+                            injectVisibilityOverride()
+                            if (isShieldActive) {
+                                injectAdBlockScript()
+                            }
                         }
-                        return
                     }
                     currentVideoId = videoId
                 }
@@ -312,9 +312,11 @@ class MainActivity : AppCompatActivity() {
                     if (shortId != lastVideoId) {
                         lastVideoId = shortId
                         runOnUiThread {
-                            webView.reload()
+                            injectVisibilityOverride()
+                            if (isShieldActive) {
+                                injectAdBlockScript()
+                            }
                         }
-                        return
                     }
                     currentVideoId = shortId
                 }
@@ -682,9 +684,17 @@ class MainActivity : AppCompatActivity() {
                         }
                     });
 
+                    var isWatchOrShort = window.location.href.includes('watch?v=') || window.location.href.includes('/shorts/');
                     var video = document.querySelector('video');
-                    var isAdPlaying = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay, .ytp-ad-player-overlay-layout');
                     if (video) {
+                        if (!isWatchOrShort) {
+                            if (!video.paused) {
+                                video.pause();
+                                console.log('Shield: Paused feed video.');
+                            }
+                            return;
+                        }
+                        var isAdPlaying = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay, .ytp-ad-player-overlay-layout');
                         if (isAdPlaying) {
                             video.muted = true;
                             video.playbackRate = 16.0;
@@ -968,16 +978,44 @@ class MainActivity : AppCompatActivity() {
                     console.log('Shield: Capture ended event listener registered.');
                 }
 
-                // 6. Desmutear automáticamente lo antes posible
-                var video = document.querySelector('video');
-                if (video && video.muted) {
-                    video.muted = false;
-                    video.volume = 1.0;
-                    console.log('Shield: Early video auto-unmuted.');
+                // 5.5 Overrides para evitar reproducción automática (autoplay) en el feed de inicio
+                if (!window.shieldPlayOverridden) {
+                    try {
+                        const originalPlay = HTMLVideoElement.prototype.play;
+                        HTMLVideoElement.prototype.play = function() {
+                            const isWatchOrShort = window.location.href.includes('watch?v=') || window.location.href.includes('/shorts/');
+                            if (!isWatchOrShort) {
+                                console.log('Shield: Play call blocked on non-watch page.');
+                                this.pause();
+                                return Promise.resolve();
+                            }
+                            return originalPlay.apply(this, arguments);
+                        };
+                        window.shieldPlayOverridden = true;
+                        console.log('Shield: Play property overridden.');
+                    } catch(e) {
+                        console.error('Shield: Failed to override play property', e);
+                    }
+                }
+
+                // 6. Desmutear automáticamente lo antes posible (solo en watch/shorts)
+                const isWatchOrShort = window.location.href.includes('watch?v=') || window.location.href.includes('/shorts/');
+                if (isWatchOrShort) {
+                    var video = document.querySelector('video');
+                    if (video && video.muted) {
+                        video.muted = false;
+                        video.volume = 1.0;
+                        console.log('Shield: Early video auto-unmuted.');
+                    }
                 }
             })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        adBlockHandler.post(adBlockRunnable)
     }
 
     override fun onResume() {
@@ -988,6 +1026,11 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         webView.evaluateJavascript("window.shieldIgnorePause = true;", null)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        adBlockHandler.removeCallbacks(adBlockRunnable)
     }
 
     override fun onBackPressed() {
