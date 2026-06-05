@@ -548,7 +548,10 @@ class MainActivity : AppCompatActivity() {
             override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
                 val url = request?.url.toString()
 
-                if (isShieldActive && AdBlocker.isAd(url)) {
+                val activeUrl = currentActiveUrl
+                val isWatchOrShort = activeUrl.contains("watch?v=") || activeUrl.contains("/shorts/")
+
+                if (isShieldActive && isWatchOrShort && AdBlocker.isAd(url)) {
                     return WebResourceResponse(
                         "application/json",
                         "utf-8",
@@ -573,7 +576,8 @@ class MainActivity : AppCompatActivity() {
                 currentActiveUrl = cleanUrl
                 updateMediaPlaybackGestureSetting(cleanUrl)
                 injectVisibilityOverride()
-                if (isShieldActive) {
+                val isWatchOrShort = cleanUrl.contains("watch?v=") || cleanUrl.contains("/shorts/")
+                if (isShieldActive && isWatchOrShort) {
                     injectAdBlockScript()
                 }
             }
@@ -584,7 +588,9 @@ class MainActivity : AppCompatActivity() {
                 super.onProgressChanged(view, newProgress)
                 if (newProgress >= 30) {
                     injectVisibilityOverride()
-                    if (isShieldActive) {
+                    val activeUrl = webView.url ?: ""
+                    val isWatchOrShort = activeUrl.contains("watch?v=") || activeUrl.contains("/shorts/")
+                    if (isShieldActive && isWatchOrShort) {
                         injectAdBlockScript()
                     }
                 }
