@@ -288,6 +288,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun queryVideoState() {
         val currentUrl = webView.url ?: ""
+        updateMediaPlaybackGestureSetting(currentUrl)
         var currentVideoId: String? = null
         if (currentUrl.contains("watch?v=")) {
             try {
@@ -525,7 +526,7 @@ class MainActivity : AppCompatActivity() {
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
         settings.databaseEnabled = true
-        settings.mediaPlaybackRequiresUserGesture = false
+        settings.mediaPlaybackRequiresUserGesture = true
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
 
@@ -554,12 +555,14 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                updateMediaPlaybackGestureSetting(url ?: "")
                 injectVisibilityOverride()
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 splashOverlay.visibility = View.GONE
+                updateMediaPlaybackGestureSetting(url ?: "")
                 injectVisibilityOverride()
                 if (isShieldActive) {
                     injectAdBlockScript()
@@ -1008,7 +1011,6 @@ class MainActivity : AppCompatActivity() {
                             const isWatchOrShort = window.location.href.includes('watch?v=') || window.location.href.includes('/shorts/');
                             if (!isWatchOrShort) {
                                 console.log('Shield: Play call blocked on non-watch page.');
-                                this.pause();
                                 return Promise.resolve();
                             }
                             return originalPlay.apply(this, arguments);
@@ -1101,6 +1103,23 @@ class MainActivity : AppCompatActivity() {
         if (isBound) {
             unbindService(serviceConnection)
             isBound = false
+        }
+    }
+
+    private fun updateMediaPlaybackGestureSetting(url: String) {
+        val isWatchOrShort = url.contains("watch?v=") || url.contains("/shorts/")
+        runOnUiThread {
+            if (isWatchOrShort) {
+                if (webView.settings.mediaPlaybackRequiresUserGesture) {
+                    webView.settings.mediaPlaybackRequiresUserGesture = false
+                    android.util.Log.d("Shield", "mediaPlaybackRequiresUserGesture set to false (watch/shorts page)")
+                }
+            } else {
+                if (!webView.settings.mediaPlaybackRequiresUserGesture) {
+                    webView.settings.mediaPlaybackRequiresUserGesture = true
+                    android.util.Log.d("Shield", "mediaPlaybackRequiresUserGesture set to true (feed page)")
+                }
+            }
         }
     }
 }
