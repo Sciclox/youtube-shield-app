@@ -548,22 +548,11 @@ class MainActivity : AppCompatActivity() {
             override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
                 val url = request?.url.toString()
 
-                // Bloquear flujos de video (videoplayback) en el feed para evitar lag de scroll
-                val activeUrl = currentActiveUrl
-                val isWatchOrShort = activeUrl.contains("watch?v=") || activeUrl.contains("/shorts/")
-                if (!isWatchOrShort && url.contains("googlevideo.com/videoplayback")) {
-                    return WebResourceResponse(
-                        "text/plain",
-                        "utf-8",
-                        ByteArrayInputStream("".toByteArray())
-                    )
-                }
-
                 if (isShieldActive && AdBlocker.isAd(url)) {
                     return WebResourceResponse(
-                        "text/plain",
+                        "application/json",
                         "utf-8",
-                        ByteArrayInputStream("".toByteArray())
+                        ByteArrayInputStream("{}".toByteArray())
                     )
                 }
                 return super.shouldInterceptRequest(view, request)
@@ -901,6 +890,147 @@ class MainActivity : AppCompatActivity() {
                             }
                         } catch(e) {}
                         return obj;
+                    };
+                }
+
+                // Interceptar Fetch para /youtubei/v1/player
+                if (!window.shieldFetchOverridden) {
+                    window.shieldFetchOverridden = true;
+                    const originalFetch = window.fetch;
+                    window.fetch = async function(...args) {
+                        let urlStr = '';
+                        if (typeof args[0] === 'string') {
+                            urlStr = args[0];
+                        } else if (args[0] && typeof args[0] === 'object' && args[0].url) {
+                            urlStr = args[0].url;
+                        }
+                        const isPlayerApi = urlStr.includes('/youtubei/v1/player');
+                        if (isPlayerApi) {
+                            try {
+                                const response = await originalFetch.apply(this, args);
+                                const text = await response.text();
+                                let json = JSON.parse(text);
+                                if (json && typeof json === 'object') {
+                                    if (json.adPlacements) json.adPlacements = [];
+                                    if (json.playerAds) json.playerAds = [];
+                                    if (json.adSlots) json.adSlots = [];
+                                    if (json.playerConfig && json.playerConfig.adPlacementConfig) {
+                                        json.playerConfig.adPlacementConfig = {};
+                                    }
+                                }
+                                const newResponse = new Response(JSON.stringify(json), {
+                                    status: response.status,
+                                    statusText: response.statusText,
+                                    headers: response.headers
+                                });
+                                Object.defineProperty(newResponse, 'url', { value: response.url, writable: false, configurable: true });
+                                Object.defineProperty(newResponse, 'redirected', { value: response.redirected, writable: false, configurable: true });
+                                return newResponse;
+                            } catch (e) {
+                                console.error("Shield: Fetch player override error", e);
+                            }
+                        }
+                        return originalFetch.apply(this, args);
+                    };
+                }
+
+                // Interceptar Response.prototype.json para asegurar limpieza si se llama directamente
+                if (!window.shieldResponseJsonOverridden) {
+                    window.shieldResponseJsonOverridden = true;
+                    const originalResponseJson = Response.prototype.json;
+                    Response.prototype.json = async function() {
+                        const json = await originalResponseJson.apply(this, arguments);
+                        if (this.url && this.url.includes('/youtubei/v1/player')) {
+                            try {
+                                if (json && typeof json === 'object') {
+                                    if (json.adPlacements) json.adPlacements = [];
+                                    if (json.playerAds) json.playerAds = [];
+                                    if (json.adSlots) json.adSlots = [];
+                                    if (json.playerConfig && json.playerConfig.adPlacementConfig) {
+                                        json.playerConfig.adPlacementConfig = {};
+                                    }
+                                }
+                            } catch (e) {
+                                console.error("Shield: Response.json override error", e);
+                            }
+                        }
+                        return json;
+                    };
+                }
+
+                // Interceptar XMLHttpRequest para /youtubei/v1/player
+                if (!window.shieldXhrOverridden) {
+                    window.shieldXhrOverridden = true;
+                    const originalOpen = XMLHttpRequest.prototype.open;
+                    const originalSend = XMLHttpRequest.prototype.send;
+                    
+                    XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+                        this._url = url;
+                        return originalOpen.apply(this, [method, url, ...rest]);
+                    };
+                    
+                    XMLHttpRequest.prototype.send = function(...args) {
+                        const self = this;
+                        const isPlayerApi = typeof this._url === 'string' && this._url.includes('/youtubei/v1/player');
+                        if (isPlayerApi) {
+                            const originalOnReadyStateChange = this.onreadystatechange;
+                            
+                            var modifyResponse = function() {
+                                try {
+                                    let responseType = self.responseType;
+                                    if (responseType === 'json') {
+                                        let json = self.response;
+                                        if (json && typeof json === 'object') {
+                                            if (json.adPlacements) json.adPlacements = [];
+                                            if (json.playerAds) json.playerAds = [];
+                                            if (json.adSlots) json.adSlots = [];
+                                            if (json.playerConfig && json.playerConfig.adPlacementConfig) {
+                                                json.playerConfig.adPlacementConfig = {};
+                                            }
+                                            Object.defineProperty(self, 'response', { value: json, writable: true, configurable: true });
+                                        }
+                                    } else if (responseType === '' || responseType === 'text') {
+                                        let modifiedResponseText = self.responseText;
+                                        let json = JSON.parse(modifiedResponseText);
+                                        if (json && typeof json === 'object') {
+                                            if (json.adPlacements) json.adPlacements = [];
+                                            if (json.playerAds) json.playerAds = [];
+                                            if (json.adSlots) json.adSlots = [];
+                                            if (json.playerConfig && json.playerConfig.adPlacementConfig) {
+                                                json.playerConfig.adPlacementConfig = {};
+                                            }
+                                            modifiedResponseText = JSON.stringify(json);
+                                            Object.defineProperty(self, 'responseText', { value: modifiedResponseText, writable: true, configurable: true });
+                                            Object.defineProperty(self, 'response', { value: modifiedResponseText, writable: true, configurable: true });
+                                        }
+                                    }
+                                } catch (e) {
+                                    console.error("Shield: XHR player override error", e);
+                                }
+                            };
+
+                            this.onreadystatechange = function() {
+                                if (self.readyState === 4 && self.status === 200) {
+                                    modifyResponse();
+                                }
+                                if (originalOnReadyStateChange) {
+                                    originalOnReadyStateChange.apply(this, arguments);
+                                }
+                            };
+                            
+                            self.addEventListener('load', function() {
+                                if (self.readyState === 4 && self.status === 200) {
+                                    modifyResponse();
+                                }
+                            }, true);
+                            
+                            self.addEventListener('readystatechange', function() {
+                                if (self.readyState === 4 && self.status === 200) {
+                                    modifyResponse();
+                                }
+                            }, true);
+                        }
+                        return originalSend.apply(this, args);
                     };
                 }
 
