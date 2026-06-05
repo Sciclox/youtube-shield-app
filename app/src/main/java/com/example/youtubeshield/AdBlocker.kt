@@ -50,6 +50,7 @@ object AdBlocker {
                 lowerUrl.contains("googleads") ||
                 lowerUrl.contains("googlesyndication") ||
                 lowerUrl.contains("googletagservices.com") ||
+                lowerUrl.contains("googleadservices.com") ||
                 lowerUrl.contains("adservice.google") ||
                 lowerUrl.contains("/pagead/")
             ) {

@@ -28,3 +28,5 @@ optimizely.com
 flurry.com
 app-measurement.com
 firebase-settings.crashlytics.com
+googleadservices.com
+pagead2.googleadservices.com

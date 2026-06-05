@@ -676,6 +676,21 @@ class MainActivity : AppCompatActivity() {
 
                 // 2. Función omitidora principal y auto-desmuteado
                 var skipAds = function() {
+                    var isWatchOrShort = window.location.href.includes('watch?v=') || window.location.href.includes('/shorts/');
+                    if (!isWatchOrShort) {
+                        var video = document.querySelector('video');
+                        if (video && !video.paused) {
+                            video.pause();
+                            console.log('Shield: Paused feed video.');
+                        }
+                        return;
+                    }
+
+                    if (window.shieldLastSkipTime && (Date.now() - window.shieldLastSkipTime < 200)) {
+                        return;
+                    }
+                    window.shieldLastSkipTime = Date.now();
+
                     var skipButtons = document.querySelectorAll('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-slot, .ytp-ad-skip-button-container, [class*=\"skip-button\"]');
                     skipButtons.forEach(function(btn) {
                         if (btn) {
@@ -684,17 +699,9 @@ class MainActivity : AppCompatActivity() {
                         }
                     });
 
-                    var isWatchOrShort = window.location.href.includes('watch?v=') || window.location.href.includes('/shorts/');
                     var video = document.querySelector('video');
                     if (video) {
-                        if (!isWatchOrShort) {
-                            if (!video.paused) {
-                                video.pause();
-                                console.log('Shield: Paused feed video.');
-                            }
-                            return;
-                        }
-                        var isAdPlaying = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay, .ytp-ad-player-overlay-layout');
+                        var isAdPlaying = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay, .ytp-ad-player-overlay-layout, .ytm-ad-player-overlay, .ytm-ad-player-overlay-layout, .ytm-ad-overlay-container');
                         if (isAdPlaying) {
                             video.muted = true;
                             video.playbackRate = 16.0;
@@ -995,6 +1002,35 @@ class MainActivity : AppCompatActivity() {
                         console.log('Shield: Play property overridden.');
                     } catch(e) {
                         console.error('Shield: Failed to override play property', e);
+                    }
+                }
+
+                // 5.6 Forzar la velocidad de reproducción del anuncio a 16.0 (evitando que YouTube la restablezca)
+                if (!window.shieldPlaybackRateOverridden) {
+                    try {
+                        const descriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'playbackRate');
+                        if (descriptor) {
+                            const originalSet = descriptor.set;
+                            const originalGet = descriptor.get;
+                            Object.defineProperty(HTMLMediaElement.prototype, 'playbackRate', {
+                                get: function() {
+                                    return originalGet.call(this);
+                                },
+                                set: function(val) {
+                                    var isAd = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay, .ytp-ad-player-overlay-layout, .ytm-ad-player-overlay, .ytm-ad-player-overlay-layout, .ytm-ad-overlay-container');
+                                    if (isAd) {
+                                        console.log('Shield: Forcing playbackRate to 16.0 during ad.');
+                                        return originalSet.call(this, 16.0);
+                                    }
+                                    return originalSet.call(this, val);
+                                },
+                                configurable: true
+                            });
+                            window.shieldPlaybackRateOverridden = true;
+                            console.log('Shield: HTMLMediaElement playbackRate overridden.');
+                        }
+                    } catch(e) {
+                        console.error('Shield: Failed to override playbackRate', e);
                     }
                 }
 
