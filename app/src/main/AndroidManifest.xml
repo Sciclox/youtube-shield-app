@@ -33,6 +33,25 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Receiver para el App Widget de la Playlist -->
+        <receiver
+            android:name=".PlaylistWidgetProvider"
+            android:exported="true"
+            android:label="YouTube Shield Playlist">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/playlist_widget_info" />
+        </receiver>
+
+        <!-- Servicio para proveer los datos de la lista al widget -->
+        <service
+            android:name=".PlaylistWidgetService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
     </application>
 
 </manifest>

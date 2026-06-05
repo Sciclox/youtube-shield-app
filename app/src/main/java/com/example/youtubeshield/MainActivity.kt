@@ -136,6 +136,9 @@ class MainActivity : AppCompatActivity() {
         // Iniciar los runnables periódicos
         adBlockHandler.post(playbackMonitorRunnable)
         setupSplashGif()
+
+        // Procesar intent de inicio si viene desde el widget
+        handleIntent(intent)
     }
 
     private fun checkNotificationPermission() {
@@ -358,7 +361,26 @@ class MainActivity : AppCompatActivity() {
         val js = """
             (function() {
                 var video = document.querySelector('video');
-                if (!video) return JSON.stringify({ title: "YouTube Shield", isPlaying: false, position: 0, duration: 0 });
+                
+                // Extraer lista de videos recomendados / playlist de YouTube Mobile
+                var items = document.querySelectorAll('ytm-compact-video-renderer, ytm-playlist-panel-video-renderer, .compact-media-item');
+                var playlist = [];
+                items.forEach(function(item) {
+                    var link = item.querySelector('a[href*="/watch"]');
+                    var titleEl = item.querySelector('.compact-media-item-headline, .playlist-panel-video-title');
+                    var channelEl = item.querySelector('.compact-media-item-channel-name, .playlist-panel-video-owner');
+                    if (link && titleEl) {
+                        var titleText = titleEl.textContent || titleEl.innerText || "";
+                        var channelText = channelEl ? (channelEl.textContent || channelEl.innerText || "") : "";
+                        playlist.push({
+                            title: titleText.trim(),
+                            url: link.getAttribute('href') || link.href,
+                            channel: channelText.trim()
+                        });
+                    }
+                });
+
+                if (!video) return JSON.stringify({ title: "YouTube Shield", isPlaying: false, position: 0, duration: 0, playlist: playlist.slice(0, 10) });
                 
                 var title = document.title;
                 title = title.replace(/^\(\d+\)\s+/, '');
@@ -373,7 +395,8 @@ class MainActivity : AppCompatActivity() {
                     title: title || "YouTube Video",
                     isPlaying: !video.paused && !video.ended,
                     position: posMs,
-                    duration: durMs
+                    duration: durMs,
+                    playlist: playlist.slice(0, 10)
                 });
             })()
         """.trimIndent()
@@ -394,6 +417,30 @@ class MainActivity : AppCompatActivity() {
                     val position = json.optLong("position", 0L)
                     val duration = json.optLong("duration", 0L)
                     
+                    // Parsear la playlist recibida
+                    val playlistArray = json.optJSONArray("playlist")
+                    val newPlaylist = ArrayList<PlaylistRepository.PlaylistItem>()
+                    if (playlistArray != null) {
+                        for (i in 0 until playlistArray.length()) {
+                            val itemObj = playlistArray.getJSONObject(i)
+                            val itemTitle = itemObj.optString("title", "")
+                            val itemUrl = itemObj.optString("url", "")
+                            val itemChannel = itemObj.optString("channel", "")
+                            if (itemTitle.isNotEmpty() && itemUrl.isNotEmpty()) {
+                                newPlaylist.add(PlaylistRepository.PlaylistItem(itemTitle, itemUrl, itemChannel))
+                            }
+                        }
+                    }
+                    
+                    // Si ha cambiado la playlist, actualizar el repositorio y el Widget
+                    if (PlaylistRepository.playlist != newPlaylist) {
+                        PlaylistRepository.playlist = newPlaylist
+                        val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(this@MainActivity)
+                        val thisWidget = android.content.ComponentName(this@MainActivity, PlaylistWidgetProvider::class.java)
+                        val widgetIds = appWidgetManager.getAppWidgetIds(thisWidget)
+                        appWidgetManager.notifyAppWidgetViewDataChanged(widgetIds, R.id.widgetListView)
+                    }
+
                     if (isPlaying && isShieldActive && !isDynamicShieldActive) {
                         isDynamicShieldActive = true
                         runOnUiThread {
@@ -1288,6 +1335,27 @@ class MainActivity : AppCompatActivity() {
                     webView.settings.mediaPlaybackRequiresUserGesture = true
                     android.util.Log.d("Shield", "mediaPlaybackRequiresUserGesture set to true (feed page)")
                 }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent == null) return
+        val url = intent.getStringExtra("video_url")
+        if (!url.isNullOrEmpty()) {
+            val fullUrl = when {
+                url.startsWith("http://") || url.startsWith("https://") -> url
+                url.startsWith("/") -> "https://m.youtube.com$url"
+                else -> "https://m.youtube.com/$url"
+            }
+            webView.post {
+                webView.loadUrl(fullUrl)
             }
         }
     }
