@@ -25,13 +25,14 @@
             android:orientation="horizontal">
 
             <!-- Pequeño punto verde de estado activo -->
-            <View
+            <ImageView
                 android:layout_width="6dp"
                 android:layout_height="6dp"
                 android:layout_marginEnd="6dp"
                 android:layout_marginRight="6dp"
                 android:background="@android:color/holo_green_light"
-                android:layout_gravity="center_vertical" />
+                android:layout_gravity="center_vertical"
+                android:contentDescription="Active Status" />
 
             <TextView
                 android:id="@+id/widgetTitle"
@@ -48,7 +49,7 @@
             android:id="@+id/widgetSubtitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_toEndOf="@id/titleContainer"
+            android:layout_toRightOf="@id/titleContainer"
             android:layout_centerVertical="true"
             android:layout_marginStart="8dp"
             android:layout_marginLeft="8dp"
@@ -64,11 +65,12 @@
     </RelativeLayout>
 
     <!-- Línea divisora sutil -->
-    <View
+    <ImageView
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="#2E2E32"
-        android:layout_marginBottom="4dp" />
+        android:layout_marginBottom="4dp"
+        android:contentDescription="Divider" />
 
     <!-- Contenedor de lista y vista vacía -->
     <FrameLayout
