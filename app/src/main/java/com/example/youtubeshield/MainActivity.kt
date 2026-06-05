@@ -54,6 +54,9 @@ class MainActivity : AppCompatActivity() {
     // Extractor de colores dinámicos
     private lateinit var colorExtractor: DynamicColorExtractor
 
+    @Volatile
+    private var currentActiveUrl: String = "https://m.youtube.com"
+
     private val serviceConnection = object : android.content.ServiceConnection {
         override fun onServiceConnected(name: android.content.ComponentName?, service: android.os.IBinder?) {
             val binder = service as MediaPlaybackService.LocalBinder
@@ -288,6 +291,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun queryVideoState() {
         val currentUrl = webView.url ?: ""
+        currentActiveUrl = currentUrl
         updateMediaPlaybackGestureSetting(currentUrl)
         var currentVideoId: String? = null
         if (currentUrl.contains("watch?v=")) {
@@ -543,6 +547,18 @@ class MainActivity : AppCompatActivity() {
 
             override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
                 val url = request?.url.toString()
+
+                // Bloquear flujos de video (videoplayback) en el feed para evitar lag de scroll
+                val activeUrl = currentActiveUrl
+                val isWatchOrShort = activeUrl.contains("watch?v=") || activeUrl.contains("/shorts/")
+                if (!isWatchOrShort && url.contains("googlevideo.com/videoplayback")) {
+                    return WebResourceResponse(
+                        "text/plain",
+                        "utf-8",
+                        ByteArrayInputStream("".toByteArray())
+                    )
+                }
+
                 if (isShieldActive && AdBlocker.isAd(url)) {
                     return WebResourceResponse(
                         "text/plain",
@@ -555,14 +571,18 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
-                updateMediaPlaybackGestureSetting(url ?: "")
+                val cleanUrl = url ?: ""
+                currentActiveUrl = cleanUrl
+                updateMediaPlaybackGestureSetting(cleanUrl)
                 injectVisibilityOverride()
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 splashOverlay.visibility = View.GONE
-                updateMediaPlaybackGestureSetting(url ?: "")
+                val cleanUrl = url ?: ""
+                currentActiveUrl = cleanUrl
+                updateMediaPlaybackGestureSetting(cleanUrl)
                 injectVisibilityOverride()
                 if (isShieldActive) {
                     injectAdBlockScript()
@@ -712,7 +732,7 @@ class MainActivity : AppCompatActivity() {
                     var video = document.querySelector('video');
                     if (video) {
                         // Selector expandido y optimizado para detectar anuncios en reproducción
-                        var isAdPlaying = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay, .ytp-ad-player-overlay-layout, .ytm-ad-player-overlay, .ytm-ad-player-overlay-layout, .ytm-ad-overlay-container, .ytp-ad-text, .ytp-ad-preview-text, .ytm-ad-preview-text, .ad-preview-text, .ad-text, .video-ads.ytp-ad-module');
+                        var isAdPlaying = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay, .ytp-ad-player-overlay-layout, .ytm-ad-player-overlay, .ytm-ad-player-overlay-layout, .ytm-ad-overlay-container, .ytp-ad-text, .ytp-ad-preview-text, .ytm-ad-preview-text, .ad-preview-text, .ad-text');
                         if (isAdPlaying) {
                             video.muted = true;
                             video.playbackRate = 16.0;
@@ -1034,7 +1054,7 @@ class MainActivity : AppCompatActivity() {
                                     return originalGet.call(this);
                                 },
                                 set: function(val) {
-                                    var isAd = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay, .ytp-ad-player-overlay-layout, .ytm-ad-player-overlay, .ytm-ad-player-overlay-layout, .ytm-ad-overlay-container, .ytp-ad-text, .ytp-ad-preview-text, .ytm-ad-preview-text, .ad-preview-text, .ad-text, .video-ads.ytp-ad-module');
+                                    var isAd = document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay, .ytp-ad-player-overlay-layout, .ytm-ad-player-overlay, .ytm-ad-player-overlay-layout, .ytm-ad-overlay-container, .ytp-ad-text, .ytp-ad-preview-text, .ytm-ad-preview-text, .ad-preview-text, .ad-text');
                                     if (isAd) {
                                         console.log('Shield: Forcing playbackRate to 16.0 during ad.');
                                         return originalSet.call(this, 16.0);
