@@ -43,6 +43,17 @@ class MainActivity : AppCompatActivity() {
     private var isLoopEnabled = false
     private val adBlockHandler = Handler(Looper.getMainLooper())
 
+    // Variables de control para el pulso automático del escudo
+    private var isPulseActive = false
+    private var lastPulseVideoId: String? = null
+    private val shieldPulseHandler = Handler(Looper.getMainLooper())
+    private val shieldPulseRunnable = Runnable {
+        isShieldActive = true
+        isPulseActive = false
+        updateShieldUI()
+        android.util.Log.d("Shield", "Escudo reactivado automáticamente después del pulso")
+    }
+
     // Variables para el control de pantalla completa
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
@@ -322,6 +333,9 @@ class MainActivity : AppCompatActivity() {
         updateMediaPlaybackGestureSetting(currentUrl)
 
         val isWatchOrShort = currentUrl.contains("watch?v=") || currentUrl.contains("/shorts/")
+        if (!isWatchOrShort) {
+            lastPulseVideoId = null
+        }
         
         var currentVideoId: String? = null
         if (isWatchOrShort) {
@@ -543,6 +557,10 @@ class MainActivity : AppCompatActivity() {
                         appWidgetManager.notifyAppWidgetViewDataChanged(widgetIds, R.id.widgetListView)
                     }
 
+                    if (urlChanged && newVideoId != null) {
+                        triggerShieldPulse(newVideoId, shouldReload = true)
+                    }
+
                     if (isPlaying && isShieldActive && !isDynamicShieldActive) {
                         isDynamicShieldActive = true
                         runOnUiThread {
@@ -667,6 +685,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnShield.setOnClickListener {
+            // Cancelar el pulso automático si está en ejecución
+            shieldPulseHandler.removeCallbacks(shieldPulseRunnable)
+            isPulseActive = false
+
             isShieldActive = !isShieldActive
             
             // Guardar preferencia
@@ -687,6 +709,31 @@ class MainActivity : AppCompatActivity() {
         } else {
             btnShield.imageTintList = ColorStateList.valueOf(ContextCompat.getColor(this, R.color.shield_off))
         }
+    }
+
+    private fun triggerShieldPulse(videoId: String?, shouldReload: Boolean) {
+        if (videoId == null || videoId == lastPulseVideoId) return
+        lastPulseVideoId = videoId
+
+        val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+        val globalShieldActive = prefs.getBoolean("shield_active", true)
+        if (!globalShieldActive) return
+
+        android.util.Log.d("Shield", "Iniciando pulso del escudo para videoId: $videoId (shouldReload: $shouldReload)")
+
+        shieldPulseHandler.removeCallbacks(shieldPulseRunnable)
+
+        isShieldActive = false
+        isPulseActive = true
+        updateShieldUI()
+
+        if (shouldReload) {
+            webView.post {
+                webView.reload()
+            }
+        }
+
+        shieldPulseHandler.postDelayed(shieldPulseRunnable, 1500)
     }
 
     private fun setupWebView() {
@@ -1339,37 +1386,11 @@ class MainActivity : AppCompatActivity() {
         val widgetIds = appWidgetManager.getAppWidgetIds(thisWidget)
         appWidgetManager.notifyAppWidgetViewDataChanged(widgetIds, R.id.widgetListView)
 
+        val videoId = getVideoId(fullUrl)
+        triggerShieldPulse(videoId, shouldReload = false)
+
         webView.post {
-            val videoId = getVideoId(fullUrl)
-            if (videoId != null) {
-                // Buscar un enlace 'a' en el DOM que contenga el videoId y hacer clic en él.
-                // Esto realiza una transición SPA nativa de YouTube sin recargar la página completa.
-                val jsClick = """
-                    (function() {
-                        var selector = 'a[href*="$videoId"]';
-                        var elements = document.querySelectorAll(selector);
-                        for (var i = 0; i < elements.length; i++) {
-                            var el = elements[i];
-                            if (el.offsetWidth > 0 || el.offsetHeight > 0) {
-                                el.click();
-                                return true;
-                            }
-                        }
-                        return false;
-                    })()
-                """.trimIndent()
-                
-                webView.evaluateJavascript(jsClick) { result ->
-                    if (result == "true") {
-                        android.util.Log.d("Shield", "Navegación SPA exitosa para videoId: $videoId")
-                    } else {
-                        android.util.Log.d("Shield", "Navegación SPA falló, usando loadUrl para videoId: $videoId")
-                        webView.loadUrl(fullUrl)
-                    }
-                }
-            } else {
-                webView.loadUrl(fullUrl)
-            }
+            webView.loadUrl(fullUrl)
         }
     }
 
