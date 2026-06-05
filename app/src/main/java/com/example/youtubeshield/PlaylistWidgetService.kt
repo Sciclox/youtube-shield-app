@@ -15,6 +15,40 @@ class PlaylistViewsFactory(private val context: Context) : RemoteViewsService.Re
 
     private var items: List<PlaylistRepository.PlaylistItem> = emptyList()
 
+    private fun getVideoId(url: String?): String? {
+        if (url.isNullOrEmpty()) return null
+        try {
+            val parsedUri = if (url.startsWith("http://") || url.startsWith("https://")) {
+                android.net.Uri.parse(url)
+            } else {
+                android.net.Uri.parse("https://m.youtube.com" + if (url.startsWith("/")) url else "/$url")
+            }
+            val v = parsedUri.getQueryParameter("v")
+            if (!v.isNullOrEmpty()) {
+                return v
+            }
+            val path = parsedUri.path
+            if (path != null && path.contains("/shorts/")) {
+                return parsedUri.lastPathSegment
+            }
+            if (url.contains("watch?v=")) {
+                val parts = url.split("watch?v=")
+                if (parts.size > 1) {
+                    return parts[1].split("&")[0]
+                }
+            }
+            if (url.contains("/shorts/")) {
+                val parts = url.split("/shorts/")
+                if (parts.size > 1) {
+                    return parts[1].split("?")[0].split("/")[0]
+                }
+            }
+        } catch (e: Exception) {
+            // Ignorar
+        }
+        return null
+    }
+
     override fun onCreate() {
         // Inicialización
     }
@@ -37,16 +71,11 @@ class PlaylistViewsFactory(private val context: Context) : RemoteViewsService.Re
         val item = items[position]
         val views = RemoteViews(context.packageName, R.layout.widget_playlist_item)
 
-        // Comprobar si este elemento es el que se está reproduciendo actualmente
+        // Comprobar si este elemento es el que se está reproduciendo actualmente utilizando IDs de video
         val currentPlaying = PlaylistRepository.currentPlayingUrl
-        val isCurrent = if (!currentPlaying.isNullOrEmpty() && item.url.isNotEmpty()) {
-            val cleanPlaying = currentPlaying.substringAfter("youtube.com").substringAfter("youtu.be")
-            val cleanItem = item.url.substringAfter("youtube.com").substringAfter("youtu.be")
-            cleanPlaying.contains("watch?v=") && cleanItem.contains("watch?v=") && 
-                    cleanPlaying.substringAfter("watch?v=") == cleanItem.substringAfter("watch?v=")
-        } else {
-            false
-        }
+        val playingId = getVideoId(currentPlaying)
+        val itemId = getVideoId(item.url)
+        val isCurrent = !playingId.isNullOrEmpty() && !itemId.isNullOrEmpty() && playingId == itemId
 
         if (isCurrent) {
             views.setTextViewText(R.id.itemTitle, "▶ ${item.title}")

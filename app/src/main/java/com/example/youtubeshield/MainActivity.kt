@@ -104,14 +104,7 @@ class MainActivity : AppCompatActivity() {
             if (intent == null) return
             val url = intent.getStringExtra("video_url")
             if (!url.isNullOrEmpty()) {
-                val fullUrl = when {
-                    url.startsWith("http://") || url.startsWith("https://") -> url
-                    url.startsWith("/") -> "https://m.youtube.com$url"
-                    else -> "https://m.youtube.com/$url"
-                }
-                webView.post {
-                    webView.loadUrl(fullUrl)
-                }
+                changeVideo(url)
             }
         }
     }
@@ -533,10 +526,16 @@ class MainActivity : AppCompatActivity() {
                     
                     val oldUrls = PlaylistRepository.playlist.map { it.url }
                     val newUrls = newPlaylist.map { it.url }
-                    val playlistChanged = oldUrls != newUrls
+                    
+                    // Si la nueva playlist está vacía y estamos en una página de video/shorts,
+                    // asumimos que es una carga intermedia y NO actualizamos la lista con elementos vacíos.
+                    val shouldKeepOldPlaylist = newPlaylist.isEmpty() && isWatchOrShort
+                    val playlistChanged = !shouldKeepOldPlaylist && (oldUrls != newUrls)
                     
                     if (playlistChanged || urlChanged) {
-                        PlaylistRepository.playlist = newPlaylist
+                        if (!shouldKeepOldPlaylist) {
+                            PlaylistRepository.playlist = newPlaylist
+                        }
                         PlaylistRepository.currentPlayingUrl = currentUrl
                         val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(this@MainActivity)
                         val thisWidget = android.content.ComponentName(this@MainActivity, PlaylistWidgetProvider::class.java)
@@ -1322,12 +1321,53 @@ class MainActivity : AppCompatActivity() {
         if (intent == null) return
         val url = intent.getStringExtra("video_url")
         if (!url.isNullOrEmpty()) {
-            val fullUrl = when {
-                url.startsWith("http://") || url.startsWith("https://") -> url
-                url.startsWith("/") -> "https://m.youtube.com$url"
-                else -> "https://m.youtube.com/$url"
-            }
-            webView.post {
+            changeVideo(url)
+        }
+    }
+
+    private fun changeVideo(url: String) {
+        val fullUrl = when {
+            url.startsWith("http://") || url.startsWith("https://") -> url
+            url.startsWith("/") -> "https://m.youtube.com$url"
+            else -> "https://m.youtube.com/$url"
+        }
+        
+        // Actualizar el URL reproduciéndose actualmente de inmediato para actualizar el highlight en el widget al instante
+        PlaylistRepository.currentPlayingUrl = fullUrl
+        val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(this)
+        val thisWidget = android.content.ComponentName(this, PlaylistWidgetProvider::class.java)
+        val widgetIds = appWidgetManager.getAppWidgetIds(thisWidget)
+        appWidgetManager.notifyAppWidgetViewDataChanged(widgetIds, R.id.widgetListView)
+
+        webView.post {
+            val videoId = getVideoId(fullUrl)
+            if (videoId != null) {
+                // Buscar un enlace 'a' en el DOM que contenga el videoId y hacer clic en él.
+                // Esto realiza una transición SPA nativa de YouTube sin recargar la página completa.
+                val jsClick = """
+                    (function() {
+                        var selector = 'a[href*="$videoId"]';
+                        var elements = document.querySelectorAll(selector);
+                        for (var i = 0; i < elements.length; i++) {
+                            var el = elements[i];
+                            if (el.offsetWidth > 0 || el.offsetHeight > 0) {
+                                el.click();
+                                return true;
+                            }
+                        }
+                        return false;
+                    })()
+                """.trimIndent()
+                
+                webView.evaluateJavascript(jsClick) { result ->
+                    if (result == "true") {
+                        android.util.Log.d("Shield", "Navegación SPA exitosa para videoId: $videoId")
+                    } else {
+                        android.util.Log.d("Shield", "Navegación SPA falló, usando loadUrl para videoId: $videoId")
+                        webView.loadUrl(fullUrl)
+                    }
+                }
+            } else {
                 webView.loadUrl(fullUrl)
             }
         }
@@ -1335,16 +1375,35 @@ class MainActivity : AppCompatActivity() {
 
     private fun getVideoId(url: String?): String? {
         if (url == null) return null
-        return try {
-            if (url.contains("watch?v=")) {
-                Uri.parse(url).getQueryParameter("v")
-            } else if (url.contains("/shorts/")) {
-                Uri.parse(url).pathSegments.lastOrNull()
+        try {
+            val parsedUri = if (url.startsWith("http://") || url.startsWith("https://")) {
+                android.net.Uri.parse(url)
             } else {
-                null
+                android.net.Uri.parse("https://m.youtube.com" + if (url.startsWith("/")) url else "/$url")
+            }
+            val v = parsedUri.getQueryParameter("v")
+            if (!v.isNullOrEmpty()) {
+                return v
+            }
+            val path = parsedUri.path
+            if (path != null && path.contains("/shorts/")) {
+                return parsedUri.lastPathSegment
+            }
+            if (url.contains("watch?v=")) {
+                val parts = url.split("watch?v=")
+                if (parts.size > 1) {
+                    return parts[1].split("&")[0]
+                }
+            }
+            if (url.contains("/shorts/")) {
+                val parts = url.split("/shorts/")
+                if (parts.size > 1) {
+                    return parts[1].split("?")[0].split("/")[0]
+                }
             }
         } catch (e: Exception) {
-            null
+            // Ignorar
         }
+        return null
     }
 }
