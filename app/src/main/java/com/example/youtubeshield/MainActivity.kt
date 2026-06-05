@@ -893,7 +893,69 @@ class MainActivity : AppCompatActivity() {
                     };
                 }
 
-                // Interceptar Fetch para /youtubei/v1/player
+                // Bloquear la carga de recursos multimedia (video/audio/source) en la página del feed principal
+                if (!window.shieldMediaSourceBlocked) {
+                    window.shieldMediaSourceBlocked = true;
+                    try {
+                        const originalSrcSet = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src')?.set;
+                        if (originalSrcSet) {
+                            Object.defineProperty(HTMLMediaElement.prototype, 'src', {
+                                set: function(val) {
+                                    if (!val) {
+                                        return originalSrcSet.call(this, val);
+                                    }
+                                    const isWatchOrShort = window.location.href.includes('watch?v=') || window.location.href.includes('/shorts/');
+                                    if (!isWatchOrShort) {
+                                        console.log('Shield: Blocked src set on feed page:', val);
+                                        return;
+                                    }
+                                    return originalSrcSet.call(this, val);
+                                },
+                                get: Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src')?.get,
+                                configurable: true
+                            });
+                        }
+
+                        const originalSourceSrcSet = Object.getOwnPropertyDescriptor(HTMLSourceElement.prototype, 'src')?.set;
+                        if (originalSourceSrcSet) {
+                            Object.defineProperty(HTMLSourceElement.prototype, 'src', {
+                                set: function(val) {
+                                    if (!val) {
+                                        return originalSourceSrcSet.call(this, val);
+                                    }
+                                    const isWatchOrShort = window.location.href.includes('watch?v=') || window.location.href.includes('/shorts/');
+                                    if (!isWatchOrShort) {
+                                        console.log('Shield: Blocked source src set on feed page:', val);
+                                        return;
+                                    }
+                                    return originalSourceSrcSet.call(this, val);
+                                },
+                                get: Object.getOwnPropertyDescriptor(HTMLSourceElement.prototype, 'src')?.get,
+                                configurable: true
+                            });
+                        }
+
+                        const originalSetAttribute = Element.prototype.setAttribute;
+                        Element.prototype.setAttribute = function(name, value) {
+                            if (name.toLowerCase() === 'src' && (this instanceof HTMLMediaElement || this instanceof HTMLSourceElement || this.tagName === 'VIDEO' || this.tagName === 'AUDIO' || this.tagName === 'SOURCE')) {
+                                if (!value) {
+                                    return originalSetAttribute.apply(this, arguments);
+                                }
+                                const isWatchOrShort = window.location.href.includes('watch?v=') || window.location.href.includes('/shorts/');
+                                if (!isWatchOrShort) {
+                                    console.log('Shield: Blocked src attribute on feed page:', value);
+                                    return;
+                                }
+                            }
+                            return originalSetAttribute.apply(this, arguments);
+                        };
+                        console.log('Shield: Media source blockers active.');
+                    } catch (e) {
+                        console.error('Shield: Failed to setup media source blockers', e);
+                    }
+                }
+
+                // Interceptar Fetch para youtubei/v1/player
                 if (!window.shieldFetchOverridden) {
                     window.shieldFetchOverridden = true;
                     const originalFetch = window.fetch;
@@ -904,7 +966,7 @@ class MainActivity : AppCompatActivity() {
                         } else if (args[0] && typeof args[0] === 'object' && args[0].url) {
                             urlStr = args[0].url;
                         }
-                        const isPlayerApi = urlStr.includes('/youtubei/v1/player');
+                        const isPlayerApi = urlStr.includes('youtubei/v1/player');
                         if (isPlayerApi) {
                             try {
                                 const response = await originalFetch.apply(this, args);
@@ -940,7 +1002,7 @@ class MainActivity : AppCompatActivity() {
                     const originalResponseJson = Response.prototype.json;
                     Response.prototype.json = async function() {
                         const json = await originalResponseJson.apply(this, arguments);
-                        if (this.url && this.url.includes('/youtubei/v1/player')) {
+                        if (this.url && this.url.includes('youtubei/v1/player')) {
                             try {
                                 if (json && typeof json === 'object') {
                                     if (json.adPlacements) json.adPlacements = [];
@@ -958,7 +1020,7 @@ class MainActivity : AppCompatActivity() {
                     };
                 }
 
-                // Interceptar XMLHttpRequest para /youtubei/v1/player
+                // Interceptar XMLHttpRequest para youtubei/v1/player
                 if (!window.shieldXhrOverridden) {
                     window.shieldXhrOverridden = true;
                     const originalOpen = XMLHttpRequest.prototype.open;
@@ -971,7 +1033,7 @@ class MainActivity : AppCompatActivity() {
                     
                     XMLHttpRequest.prototype.send = function(...args) {
                         const self = this;
-                        const isPlayerApi = typeof this._url === 'string' && this._url.includes('/youtubei/v1/player');
+                        const isPlayerApi = typeof this._url === 'string' && this._url.includes('youtubei/v1/player');
                         if (isPlayerApi) {
                             const originalOnReadyStateChange = this.onreadystatechange;
                             
