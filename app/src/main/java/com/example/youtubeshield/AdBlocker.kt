@@ -58,8 +58,7 @@ object AdBlocker {
                 return true
             }
 
-            val uri = Uri.parse(url)
-            val host = uri.host?.lowercase() ?: return false
+            val host = getHost(url) ?: return false
             
             var isHostBlocked = hostCache[host]
             if (isHostBlocked == null) {
@@ -89,5 +88,26 @@ object AdBlocker {
             tempHost = tempHost.substring(nextDotIndex + 1)
         }
         return blockedDomains.contains(tempHost)
+    }
+
+    private fun getHost(url: String): String? {
+        var temp = url
+        val doubleSlash = temp.indexOf("//")
+        if (doubleSlash != -1) {
+            temp = temp.substring(doubleSlash + 2)
+        }
+        val slash = temp.indexOf('/')
+        if (slash != -1) {
+            temp = temp.substring(0, slash)
+        }
+        val colon = temp.indexOf(':')
+        if (colon != -1) {
+            temp = temp.substring(0, colon)
+        }
+        val question = temp.indexOf('?')
+        if (question != -1) {
+            temp = temp.substring(0, question)
+        }
+        return if (temp.isNotEmpty()) temp.lowercase() else null
     }
 }

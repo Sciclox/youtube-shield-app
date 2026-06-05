@@ -293,6 +293,18 @@ class MainActivity : AppCompatActivity() {
         val currentUrl = webView.url ?: ""
         currentActiveUrl = currentUrl
         updateMediaPlaybackGestureSetting(currentUrl)
+
+        val isWatchOrShort = currentUrl.contains("watch?v=") || currentUrl.contains("/shorts/")
+        if (!isWatchOrShort) {
+            if (lastVideoId != null || loadedThumbnailVideoId != null) {
+                lastVideoId = null
+                loadedThumbnailVideoId = null
+                currentThumbnail = null
+                playbackService?.updateMetadata("YouTube Shield", false, isLoopEnabled, null, 0L, 0L)
+            }
+            return
+        }
+
         var currentVideoId: String? = null
         if (currentUrl.contains("watch?v=")) {
             try {
@@ -526,6 +538,9 @@ class MainActivity : AppCompatActivity() {
         // Limpiar base de datos, local storage y Service Workers registrados al iniciar
         WebStorage.getInstance().deleteAllData()
         webView.clearCache(true)
+
+        // Habilitar aceleración por hardware para renderizado fluido en GPU
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
 
         val settings = webView.settings
         settings.javaScriptEnabled = true
@@ -821,23 +836,7 @@ class MainActivity : AppCompatActivity() {
     private fun injectVisibilityOverride() {
         val js = """
             (function() {
-                // Inyectar estilos CSS específicos para el Feed o la página de Video
-                (function() {
-                    const isWatch = window.location.href.includes('watch?v=') || window.location.href.includes('/shorts/');
-                    if (isWatch) {
-                        const feedStyle = document.getElementById('shield-feed-styles');
-                        if (feedStyle) feedStyle.remove();
-                    } else {
-                        if (!document.getElementById('shield-feed-styles')) {
-                            const style = document.createElement('style');
-                            style.id = 'shield-feed-styles';
-                            style.type = 'text/css';
-                            style.innerHTML = 'ytm-inline-playback-renderer, .ytm-inline-playback-renderer, ytd-video-preview, ytm-video-preview, ytm-inline-preview, .mouseover-overlay, #mouseover-overlay, .ytm-inline-playback-container, .inline-playback-container, .ytm-video-preview-container { display: none !important; height: 0 !important; width: 0 !important; visibility: hidden !important; pointer-events: none !important; opacity: 0 !important; } #masthead-ad, ytm-companion-ad-renderer, ytm-display-ad-renderer, ytm-promoted-item, ytm-banner-ad-renderer, ytm-inline-ad-renderer, ytm-carousel-ad-renderer, ytm-statement-banner-ad-renderer, ytm-interactive-tabbed-header-ad-renderer, ytd-promoted-sparkles-web-renderer, ytm-promoted-sparkles-web-renderer, .ad-container, .ad-div { display: none !important; height: 0 !important; width: 0 !important; visibility: hidden !important; }';
-                            document.head.appendChild(style);
-                            console.log('Shield: Feed-specific styles injected.');
-                        }
-                    }
-                })();
+                // Estilos específicos de feed removidos para permitir previsualizaciones
 
                 // 0. Interceptar ytcfg y JSON.parse para desactivar/bloquear anuncios nativos
                 if (!window.shieldYtcfgOverridden) {
@@ -918,101 +917,7 @@ class MainActivity : AppCompatActivity() {
                     };
                 }
 
-                // Bloquear la carga de recursos multimedia (video/audio/source) en la página del feed principal
-                if (!window.shieldMediaSourceBlocked) {
-                    window.shieldMediaSourceBlocked = true;
-                    try {
-                        const originalSrcSet = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src')?.set;
-                        if (originalSrcSet) {
-                            Object.defineProperty(HTMLMediaElement.prototype, 'src', {
-                                set: function(val) {
-                                    if (!val) {
-                                        return originalSrcSet.call(this, val);
-                                    }
-                                    const isWatchOrShort = window.location.href.includes('watch?v=') || window.location.href.includes('/shorts/');
-                                    if (!isWatchOrShort) {
-                                        console.log('Shield: Blocked src set on feed page:', val);
-                                        return;
-                                    }
-                                    return originalSrcSet.call(this, val);
-                                },
-                                get: Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src')?.get,
-                                configurable: true
-                            });
-                        }
-
-                        const originalSrcObjectSet = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'srcObject')?.set;
-                        if (originalSrcObjectSet) {
-                            Object.defineProperty(HTMLMediaElement.prototype, 'srcObject', {
-                                set: function(val) {
-                                    if (!val) {
-                                        return originalSrcObjectSet.call(this, val);
-                                    }
-                                    const isWatchOrShort = window.location.href.includes('watch?v=') || window.location.href.includes('/shorts/');
-                                    if (!isWatchOrShort) {
-                                        console.log('Shield: Blocked srcObject set on feed page:', val);
-                                        return;
-                                    }
-                                    return originalSrcObjectSet.call(this, val);
-                                },
-                                get: Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'srcObject')?.get,
-                                configurable: true
-                            });
-                        }
-
-                        const originalSourceSrcSet = Object.getOwnPropertyDescriptor(HTMLSourceElement.prototype, 'src')?.set;
-                        if (originalSourceSrcSet) {
-                            Object.defineProperty(HTMLSourceElement.prototype, 'src', {
-                                set: function(val) {
-                                    if (!val) {
-                                        return originalSourceSrcSet.call(this, val);
-                                    }
-                                    const isWatchOrShort = window.location.href.includes('watch?v=') || window.location.href.includes('/shorts/');
-                                    if (!isWatchOrShort) {
-                                        console.log('Shield: Blocked source src set on feed page:', val);
-                                        return;
-                                    }
-                                    return originalSourceSrcSet.call(this, val);
-                                },
-                                get: Object.getOwnPropertyDescriptor(HTMLSourceElement.prototype, 'src')?.get,
-                                configurable: true
-                            });
-                        }
-
-                        const originalSetAttribute = Element.prototype.setAttribute;
-                        Element.prototype.setAttribute = function(name, value) {
-                            if (name.toLowerCase() === 'src' && (this instanceof HTMLMediaElement || this instanceof HTMLSourceElement || this.tagName === 'VIDEO' || this.tagName === 'AUDIO' || this.tagName === 'SOURCE')) {
-                                if (!value) {
-                                    return originalSetAttribute.apply(this, arguments);
-                                }
-                                const isWatchOrShort = window.location.href.includes('watch?v=') || window.location.href.includes('/shorts/');
-                                if (!isWatchOrShort) {
-                                    console.log('Shield: Blocked src attribute on feed page:', value);
-                                    return;
-                                }
-                            }
-                            return originalSetAttribute.apply(this, arguments);
-                        };
-
-                        window.addEventListener('play', function(e) {
-                            const isWatchOrShort = window.location.href.includes('watch?v=') || window.location.href.includes('/shorts/');
-                            if (!isWatchOrShort && e.target && (e.target.tagName === 'VIDEO' || e.target.tagName === 'AUDIO')) {
-                                try {
-                                    e.preventDefault();
-                                    e.stopImmediatePropagation();
-                                    e.target.pause();
-                                    e.target.src = '';
-                                    e.target.srcObject = null;
-                                } catch (err) {}
-                                console.log('Shield: Stopped active feed media element playback.');
-                            }
-                        }, true);
-
-                        console.log('Shield: Media source blockers active.');
-                    } catch (e) {
-                        console.error('Shield: Failed to setup media source blockers', e);
-                    }
-                }
+                // Bloqueadores de recursos multimedia del feed removidos para permitir previsualizaciones
 
                 // Interceptar Fetch para youtubei/v1/player
                 if (!window.shieldFetchOverridden) {
@@ -1279,25 +1184,6 @@ class MainActivity : AppCompatActivity() {
                     }, true);
                     window.shieldEndedListenerRegistered = true;
                     console.log('Shield: Capture ended event listener registered.');
-                }
-
-                // 5.5 Overrides para evitar reproducción automática (autoplay) en el feed de inicio
-                if (!window.shieldPlayOverridden) {
-                    try {
-                        const originalPlay = HTMLVideoElement.prototype.play;
-                        HTMLVideoElement.prototype.play = function() {
-                            const isWatchOrShort = window.location.href.includes('watch?v=') || window.location.href.includes('/shorts/');
-                            if (!isWatchOrShort) {
-                                console.log('Shield: Play call blocked on non-watch page.');
-                                return Promise.resolve();
-                            }
-                            return originalPlay.apply(this, arguments);
-                        };
-                        window.shieldPlayOverridden = true;
-                        console.log('Shield: Play property overridden.');
-                    } catch(e) {
-                        console.error('Shield: Failed to override play property', e);
-                    }
                 }
 
                 // 5.6 Forzar la velocidad de reproducción del anuncio a 16.0 (evitando que YouTube la restablezca)
