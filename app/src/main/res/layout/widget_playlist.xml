@@ -11,8 +11,8 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="10dp"
-        android:paddingStart="4dp"
-        android:paddingEnd="4dp">
+        android:paddingLeft="4dp"
+        android:paddingRight="4dp">
 
         <!-- Contenedor del título con indicador de estado -->
         <LinearLayout
@@ -29,8 +29,8 @@
                 android:layout_width="6dp"
                 android:layout_height="6dp"
                 android:layout_marginEnd="6dp"
+                android:layout_marginRight="6dp"
                 android:background="@android:color/holo_green_light"
-                android:backgroundTint="@android:color/holo_green_light"
                 android:layout_gravity="center_vertical" />
 
             <TextView
@@ -51,9 +51,12 @@
             android:layout_toEndOf="@id/titleContainer"
             android:layout_centerVertical="true"
             android:layout_marginStart="8dp"
+            android:layout_marginLeft="8dp"
             android:background="@drawable/widget_badge_background"
-            android:paddingHorizontal="6dp"
-            android:paddingVertical="2dp"
+            android:paddingLeft="6dp"
+            android:paddingRight="6dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
             android:text="PLAYLIST"
             android:textColor="#FFFFFF"
             android:textSize="9sp"
@@ -91,12 +94,11 @@
             android:padding="16dp"
             android:visibility="gone">
 
-            <!-- Icono de escudo sutil -->
+            <!-- Icono de escudo sutil sin tint -->
             <ImageView
                 android:layout_width="32dp"
                 android:layout_height="32dp"
-                android:src="@drawable/ic_shield"
-                android:tint="#4C4C50"
+                android:src="@drawable/ic_shield_grey"
                 android:contentDescription="Escudo"
                 android:layout_marginBottom="8dp" />
 

@@ -307,7 +307,6 @@ class MainActivity : AppCompatActivity() {
                     if (videoId != null) {
                         if (videoId != lastVideoId) {
                             lastVideoId = videoId
-                            isDynamicShieldActive = false
                             runOnUiThread {
                                 injectVisibilityOverride()
                             }
@@ -324,7 +323,6 @@ class MainActivity : AppCompatActivity() {
                     if (shortId != null) {
                         if (shortId != lastVideoId) {
                             lastVideoId = shortId
-                            isDynamicShieldActive = false
                             runOnUiThread {
                                 injectVisibilityOverride()
                             }
@@ -665,8 +663,6 @@ class MainActivity : AppCompatActivity() {
                 super.onPageStarted(view, url, favicon)
                 val cleanUrl = url ?: ""
                 currentActiveUrl = cleanUrl
-                val isWatchOrShort = cleanUrl.contains("watch?v=") || cleanUrl.contains("/shorts/")
-                isDynamicShieldActive = !isWatchOrShort
                 updateMediaPlaybackGestureSetting(cleanUrl)
                 injectVisibilityOverride()
             }
@@ -688,8 +684,6 @@ class MainActivity : AppCompatActivity() {
                 super.doUpdateVisitedHistory(view, url, isReload)
                 val cleanUrl = url ?: ""
                 currentActiveUrl = cleanUrl
-                val isWatchOrShort = cleanUrl.contains("watch?v=") || cleanUrl.contains("/shorts/")
-                isDynamicShieldActive = !isWatchOrShort
             }
         }
 
