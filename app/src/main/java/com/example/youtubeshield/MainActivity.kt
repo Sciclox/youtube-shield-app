@@ -523,7 +523,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupWebView() {
-        // Limpiar caché de WebView al iniciar para evitar anuncios cacheados
+        // Limpiar base de datos, local storage y Service Workers registrados al iniciar
+        WebStorage.getInstance().deleteAllData()
         webView.clearCache(true)
 
         val settings = webView.settings
@@ -940,6 +941,25 @@ class MainActivity : AppCompatActivity() {
                             });
                         }
 
+                        const originalSrcObjectSet = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'srcObject')?.set;
+                        if (originalSrcObjectSet) {
+                            Object.defineProperty(HTMLMediaElement.prototype, 'srcObject', {
+                                set: function(val) {
+                                    if (!val) {
+                                        return originalSrcObjectSet.call(this, val);
+                                    }
+                                    const isWatchOrShort = window.location.href.includes('watch?v=') || window.location.href.includes('/shorts/');
+                                    if (!isWatchOrShort) {
+                                        console.log('Shield: Blocked srcObject set on feed page:', val);
+                                        return;
+                                    }
+                                    return originalSrcObjectSet.call(this, val);
+                                },
+                                get: Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'srcObject')?.get,
+                                configurable: true
+                            });
+                        }
+
                         const originalSourceSrcSet = Object.getOwnPropertyDescriptor(HTMLSourceElement.prototype, 'src')?.set;
                         if (originalSourceSrcSet) {
                             Object.defineProperty(HTMLSourceElement.prototype, 'src', {
@@ -973,6 +993,21 @@ class MainActivity : AppCompatActivity() {
                             }
                             return originalSetAttribute.apply(this, arguments);
                         };
+
+                        window.addEventListener('play', function(e) {
+                            const isWatchOrShort = window.location.href.includes('watch?v=') || window.location.href.includes('/shorts/');
+                            if (!isWatchOrShort && e.target && (e.target.tagName === 'VIDEO' || e.target.tagName === 'AUDIO')) {
+                                try {
+                                    e.preventDefault();
+                                    e.stopImmediatePropagation();
+                                    e.target.pause();
+                                    e.target.src = '';
+                                    e.target.srcObject = null;
+                                } catch (err) {}
+                                console.log('Shield: Stopped active feed media element playback.');
+                            }
+                        }, true);
+
                         console.log('Shield: Media source blockers active.');
                     } catch (e) {
                         console.error('Shield: Failed to setup media source blockers', e);
@@ -1139,9 +1174,16 @@ class MainActivity : AppCompatActivity() {
                     } catch(e){}
                 }
 
-                // 1. Bloquear Service Workers
+                // 1. Unregister and block Service Workers
                 if (typeof navigator.serviceWorker !== 'undefined') {
                     try {
+                        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                            for (let registration of registrations) {
+                                registration.unregister();
+                                console.log('Shield: Unregistered ServiceWorker:', registration);
+                            }
+                        }).catch(function(e) {});
+
                         Object.defineProperty(navigator, 'serviceWorker', {
                             get: function() { return undefined; },
                             configurable: true
