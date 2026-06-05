@@ -526,9 +526,16 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                     
-                    // Si ha cambiado la playlist o la canción activa, actualizar el repositorio y el Widget
-                    val urlChanged = PlaylistRepository.currentPlayingUrl != currentUrl
-                    if (PlaylistRepository.playlist != newPlaylist || urlChanged) {
+                    // Si ha cambiado la playlist o la canción activa (comparando IDs de video), actualizar el repositorio y el Widget
+                    val oldVideoId = getVideoId(PlaylistRepository.currentPlayingUrl)
+                    val newVideoId = getVideoId(currentUrl)
+                    val urlChanged = oldVideoId != newVideoId
+                    
+                    val oldUrls = PlaylistRepository.playlist.map { it.url }
+                    val newUrls = newPlaylist.map { it.url }
+                    val playlistChanged = oldUrls != newUrls
+                    
+                    if (playlistChanged || urlChanged) {
                         PlaylistRepository.playlist = newPlaylist
                         PlaylistRepository.currentPlayingUrl = currentUrl
                         val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(this@MainActivity)
@@ -1323,6 +1330,21 @@ class MainActivity : AppCompatActivity() {
             webView.post {
                 webView.loadUrl(fullUrl)
             }
+        }
+    }
+
+    private fun getVideoId(url: String?): String? {
+        if (url == null) return null
+        return try {
+            if (url.contains("watch?v=")) {
+                Uri.parse(url).getQueryParameter("v")
+            } else if (url.contains("/shorts/")) {
+                Uri.parse(url).pathSegments.lastOrNull()
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
         }
     }
 }
