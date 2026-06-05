@@ -34,6 +34,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnShield: ImageButton
 
     private var isShieldActive = true
+    private var isDynamicShieldActive = false
     private var isLoopEnabled = false
     private val adBlockHandler = Handler(Looper.getMainLooper())
 
@@ -313,11 +314,9 @@ class MainActivity : AppCompatActivity() {
                 if (videoId != null) {
                     if (videoId != lastVideoId) {
                         lastVideoId = videoId
+                        isDynamicShieldActive = false
                         runOnUiThread {
                             injectVisibilityOverride()
-                            if (isShieldActive) {
-                                injectAdBlockScript()
-                            }
                         }
                     }
                     currentVideoId = videoId
@@ -332,11 +331,9 @@ class MainActivity : AppCompatActivity() {
                 if (shortId != null) {
                     if (shortId != lastVideoId) {
                         lastVideoId = shortId
+                        isDynamicShieldActive = false
                         runOnUiThread {
                             injectVisibilityOverride()
-                            if (isShieldActive) {
-                                injectAdBlockScript()
-                            }
                         }
                     }
                     currentVideoId = shortId
@@ -396,6 +393,13 @@ class MainActivity : AppCompatActivity() {
                     val isPlaying = json.optBoolean("isPlaying", false)
                     val position = json.optLong("position", 0L)
                     val duration = json.optLong("duration", 0L)
+                    
+                    if (isPlaying && isShieldActive && !isDynamicShieldActive) {
+                        isDynamicShieldActive = true
+                        runOnUiThread {
+                            injectAdBlockScript()
+                        }
+                    }
                     
                     playbackService?.updateMetadata(title, isPlaying, isLoopEnabled, currentThumbnail, position, duration)
                 } catch (e: Exception) {
@@ -567,7 +571,7 @@ class MainActivity : AppCompatActivity() {
                 val activeUrl = currentActiveUrl
                 val isWatchOrShort = activeUrl.contains("watch?v=") || activeUrl.contains("/shorts/")
 
-                if (isShieldActive && isWatchOrShort && AdBlocker.isAd(url)) {
+                if (isShieldActive && isDynamicShieldActive && isWatchOrShort && AdBlocker.isAd(url)) {
                     return WebResourceResponse(
                         "application/json",
                         "utf-8",
@@ -581,6 +585,7 @@ class MainActivity : AppCompatActivity() {
                 super.onPageStarted(view, url, favicon)
                 val cleanUrl = url ?: ""
                 currentActiveUrl = cleanUrl
+                isDynamicShieldActive = false
                 updateMediaPlaybackGestureSetting(cleanUrl)
                 injectVisibilityOverride()
             }
