@@ -418,7 +418,7 @@ class MainActivity : AppCompatActivity() {
 
                 var slicedPlaylist = playlist.slice(0, 15);
 
-                if (!video) return JSON.stringify({ title: "YouTube Shield", isPlaying: false, position: 0, duration: 0, playlist: slicedPlaylist });
+                if (!video) return { title: "YouTube Shield", isPlaying: false, position: 0, duration: 0, playlist: slicedPlaylist };
                 
                 var title = document.title;
                 title = title.replace(/^\(\d+\)\s+/, '');
@@ -429,27 +429,20 @@ class MainActivity : AppCompatActivity() {
                 var posMs = Math.floor(video.currentTime * 1000);
                 var durMs = isNaN(video.duration) ? 0 : Math.floor(video.duration * 1000);
                 
-                return JSON.stringify({
+                return {
                     title: title || "YouTube Video",
                     isPlaying: !video.paused && !video.ended,
                     position: posMs,
                     duration: durMs,
                     playlist: slicedPlaylist
-                });
+                };
             })()
         """.trimIndent()
 
         webView.evaluateJavascript(js) { result ->
             if (result != null && result != "null" && result != "\"null\"") {
                 try {
-                    var cleanResult = result
-                    if (cleanResult.startsWith("\"") && cleanResult.endsWith("\"")) {
-                        cleanResult = cleanResult.substring(1, cleanResult.length - 1)
-                        cleanResult = cleanResult.replace("\\\"", "\"")
-                        cleanResult = cleanResult.replace("\\\\", "\\")
-                    }
-
-                    val json = org.json.JSONObject(cleanResult)
+                    val json = org.json.JSONObject(result)
                     val title = json.optString("title", "YouTube Shield")
                     val isPlaying = json.optBoolean("isPlaying", false)
                     val position = json.optLong("position", 0L)
@@ -672,7 +665,8 @@ class MainActivity : AppCompatActivity() {
                 super.onPageStarted(view, url, favicon)
                 val cleanUrl = url ?: ""
                 currentActiveUrl = cleanUrl
-                isDynamicShieldActive = false
+                val isWatchOrShort = cleanUrl.contains("watch?v=") || cleanUrl.contains("/shorts/")
+                isDynamicShieldActive = !isWatchOrShort
                 updateMediaPlaybackGestureSetting(cleanUrl)
                 injectVisibilityOverride()
             }
@@ -688,6 +682,14 @@ class MainActivity : AppCompatActivity() {
                 if (isShieldActive && isWatchOrShort && isDynamicShieldActive) {
                     injectAdBlockScript()
                 }
+            }
+
+            override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+                super.doUpdateVisitedHistory(view, url, isReload)
+                val cleanUrl = url ?: ""
+                currentActiveUrl = cleanUrl
+                val isWatchOrShort = cleanUrl.contains("watch?v=") || cleanUrl.contains("/shorts/")
+                isDynamicShieldActive = !isWatchOrShort
             }
         }
 
