@@ -389,38 +389,71 @@ class MainActivity : AppCompatActivity() {
         val js = """
             (function() {
                 var video = document.querySelector('video');
-                
-                // Extraer lista de videos recomendados / playlist / home feed de YouTube Mobile
-                var items = document.querySelectorAll('ytm-media-item, ytm-compact-video-renderer, ytm-playlist-panel-video-renderer, ytm-video-with-context-renderer, ytm-rich-item-renderer, .compact-media-item');
                 var playlist = [];
                 var seenUrls = new Set();
 
-                items.forEach(function(item) {
-                    var link = item.querySelector('a[href*="/watch"], a[href*="watch?v="]');
-                    var titleEl = item.querySelector('.media-item-title, .compact-media-item-headline, .playlist-panel-video-title, h3, h4, [class*="title"]');
-                    var channelEl = item.querySelector('.media-item-subtitle, .compact-media-item-channel-name, .playlist-panel-video-owner, [class*="channel"], [class*="owner"], [class*="subtitle"]');
-                    
-                    if (link && titleEl) {
-                        var href = link.getAttribute('href') || link.href || "";
-                        if (href && !seenUrls.has(href)) {
-                            seenUrls.add(href);
-                            var titleText = (titleEl.textContent || titleEl.innerText || "").trim();
-                            var channelText = channelEl ? (channelEl.textContent || channelEl.innerText || "").trim() : "";
-                            if (channelText.includes('\n')) {
-                                channelText = channelText.split('\n')[0].trim();
-                            }
-                            if (titleText && href) {
-                                playlist.push({
-                                    title: titleText,
-                                    url: href,
-                                    channel: channelText
-                                });
+                // 1. Intentar extraer de la playlist/mix activa de YouTube (ytm-playlist-panel-video-renderer)
+                var playlistItems = document.querySelectorAll('ytm-playlist-panel-video-renderer, .playlist-panel-video-renderer, ytm-playlist-panel-renderer ytm-playlist-panel-video-renderer');
+                if (playlistItems && playlistItems.length > 0) {
+                    playlistItems.forEach(function(item) {
+                        var link = item.querySelector('a[href*="watch?v="], a[href*="/watch"]');
+                        if (!link && item.tagName === 'A') {
+                            link = item;
+                        }
+                        var titleEl = item.querySelector('.playlist-panel-video-title, .title, h4, h3');
+                        var channelEl = item.querySelector('.playlist-panel-video-owner, .playlist-panel-video-subtitle, .channel, span');
+                        
+                        if (link && titleEl) {
+                            var href = link.getAttribute('href') || link.href || "";
+                            if (href && !seenUrls.has(href)) {
+                                seenUrls.add(href);
+                                var titleText = (titleEl.textContent || titleEl.innerText || "").trim();
+                                var channelText = channelEl ? (channelEl.textContent || channelEl.innerText || "").trim() : "";
+                                if (channelText.includes('\n')) {
+                                    channelText = channelText.split('\n')[0].trim();
+                                }
+                                if (titleText && href) {
+                                    playlist.push({
+                                        title: titleText,
+                                        url: href,
+                                        channel: channelText
+                                    });
+                                }
                             }
                         }
-                    }
-                });
+                    });
+                }
 
-                // Fallback por si no encuentra elementos estructurados
+                // 2. Si no hay mix/playlist activa, extraer recomendaciones (Up Next / Feed)
+                if (playlist.length === 0) {
+                    var items = document.querySelectorAll('ytm-media-item, ytm-compact-video-renderer, ytm-video-with-context-renderer, ytm-rich-item-renderer, .compact-media-item');
+                    items.forEach(function(item) {
+                        var link = item.querySelector('a[href*="/watch"], a[href*="watch?v="]');
+                        var titleEl = item.querySelector('.media-item-title, .compact-media-item-headline, .playlist-panel-video-title, h3, h4, [class*="title"]');
+                        var channelEl = item.querySelector('.media-item-subtitle, .compact-media-item-channel-name, .playlist-panel-video-owner, [class*="channel"], [class*="owner"], [class*="subtitle"]');
+                        
+                        if (link && titleEl) {
+                            var href = link.getAttribute('href') || link.href || "";
+                            if (href && !seenUrls.has(href)) {
+                                seenUrls.add(href);
+                                var titleText = (titleEl.textContent || titleEl.innerText || "").trim();
+                                var channelText = channelEl ? (channelEl.textContent || channelEl.innerText || "").trim() : "";
+                                if (channelText.includes('\n')) {
+                                    channelText = channelText.split('\n')[0].trim();
+                                }
+                                if (titleText && href) {
+                                    playlist.push({
+                                        title: titleText,
+                                        url: href,
+                                        channel: channelText
+                                    });
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // 3. Fallback final por si no encuentra elementos estructurados
                 if (playlist.length === 0) {
                     var links = document.querySelectorAll('a[href*="/watch"], a[href*="watch?v="]');
                     links.forEach(function(link) {
@@ -446,7 +479,7 @@ class MainActivity : AppCompatActivity() {
                     });
                 }
 
-                var slicedPlaylist = playlist.slice(0, 15);
+                var slicedPlaylist = playlist.slice(0, 20);
 
                 if (!video) return { title: "YouTube Shield", isPlaying: false, position: 0, duration: 0, playlist: slicedPlaylist };
                 
