@@ -10,6 +10,10 @@ import android.widget.RemoteViews
 
 class PlaylistWidgetProvider : AppWidgetProvider() {
 
+    companion object {
+        const val ACTION_WIDGET_PLAY = "com.example.youtubeshield.ACTION_WIDGET_PLAY"
+    }
+
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         for (appWidgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_playlist)
@@ -22,10 +26,10 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
             views.setRemoteAdapter(R.id.widgetListView, serviceIntent)
             views.setEmptyView(R.id.widgetListView, R.id.widgetEmptyView)
 
-            // Intent de plantilla para capturar los clics en los elementos de la lista y abrir MainActivity
-            val clickIntent = Intent(context, MainActivity::class.java).apply {
-                action = Intent.ACTION_VIEW
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            // Intent de plantilla para capturar los clics en los elementos de la lista enviando un Broadcast a este receptor
+            val clickIntent = Intent(context, PlaylistWidgetProvider::class.java).apply {
+                action = ACTION_WIDGET_PLAY
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             }
             
             val flags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
@@ -34,7 +38,7 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
                 PendingIntent.FLAG_UPDATE_CURRENT
             }
             
-            val clickPendingIntent = PendingIntent.getActivity(
+            val clickPendingIntent = PendingIntent.getBroadcast(
                 context,
                 0,
                 clickIntent,
@@ -46,5 +50,30 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }
         super.onUpdate(context, appWidgetManager, appWidgetIds)
+    }
+
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == ACTION_WIDGET_PLAY) {
+            val url = intent.getStringExtra("video_url")
+            if (!url.isNullOrEmpty()) {
+                if (MainActivity.isActivityRunning) {
+                    // Si MainActivity ya está en ejecución (por ejemplo en segundo plano),
+                    // le enviamos un Broadcast interno para cambiar de video sin traer la app al frente.
+                    val changeIntent = Intent("com.example.youtubeshield.ACTION_CHANGE_VIDEO").apply {
+                        putExtra("video_url", url)
+                        setPackage(context.packageName)
+                    }
+                    context.sendBroadcast(changeIntent)
+                } else {
+                    // Si MainActivity no está ejecutándose, abrimos la aplicación normalmente
+                    val launchIntent = Intent(context, MainActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        putExtra("video_url", url)
+                    }
+                    context.startActivity(launchIntent)
+                }
+            }
+        }
+        super.onReceive(context, intent)
     }
 }

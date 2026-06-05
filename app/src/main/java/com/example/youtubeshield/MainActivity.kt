@@ -27,6 +27,11 @@ import java.io.ByteArrayInputStream
 
 class MainActivity : AppCompatActivity() {
 
+    companion object {
+        @Volatile
+        var isActivityRunning = false
+    }
+
     private lateinit var webView: WebView
     private lateinit var navBarCard: CardView
     private lateinit var fullscreenContainer: FrameLayout
@@ -94,6 +99,23 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val videoChangeReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent == null) return
+            val url = intent.getStringExtra("video_url")
+            if (!url.isNullOrEmpty()) {
+                val fullUrl = when {
+                    url.startsWith("http://") || url.startsWith("https://") -> url
+                    url.startsWith("/") -> "https://m.youtube.com$url"
+                    else -> "https://m.youtube.com/$url"
+                }
+                webView.post {
+                    webView.loadUrl(fullUrl)
+                }
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -137,6 +159,16 @@ class MainActivity : AppCompatActivity() {
 
         // Procesar intent de inicio si viene desde el widget
         handleIntent(intent)
+
+        isActivityRunning = true
+
+        // Registrar broadcast receiver para cambiar de canción en segundo plano
+        val videoChangeFilter = android.content.IntentFilter("com.example.youtubeshield.ACTION_CHANGE_VIDEO")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(videoChangeReceiver, videoChangeFilter, Context.RECEIVER_EXPORTED)
+        } else {
+            registerReceiver(videoChangeReceiver, videoChangeFilter)
+        }
     }
 
     private fun checkNotificationPermission() {
@@ -461,9 +493,11 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                     
-                    // Si ha cambiado la playlist, actualizar el repositorio y el Widget
-                    if (PlaylistRepository.playlist != newPlaylist) {
+                    // Si ha cambiado la playlist o la canción activa, actualizar el repositorio y el Widget
+                    val urlChanged = PlaylistRepository.currentPlayingUrl != currentUrl
+                    if (PlaylistRepository.playlist != newPlaylist || urlChanged) {
                         PlaylistRepository.playlist = newPlaylist
+                        PlaylistRepository.currentPlayingUrl = currentUrl
                         val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(this@MainActivity)
                         val thisWidget = android.content.ComponentName(this@MainActivity, PlaylistWidgetProvider::class.java)
                         val widgetIds = appWidgetManager.getAppWidgetIds(thisWidget)
@@ -1208,6 +1242,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        isActivityRunning = false
+        try {
+            unregisterReceiver(videoChangeReceiver)
+        } catch (e: Exception) {}
+
         adBlockHandler.removeCallbacks(adBlockRunnable)
         adBlockHandler.removeCallbacks(playbackMonitorRunnable)
         if (isBound) {

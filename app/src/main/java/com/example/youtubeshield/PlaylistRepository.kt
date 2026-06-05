@@ -5,4 +5,7 @@ object PlaylistRepository {
 
     @Volatile
     var playlist: List<PlaylistItem> = emptyList()
+
+    @Volatile
+    var currentPlayingUrl: String? = null
 }
