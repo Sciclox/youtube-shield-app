@@ -12,4 +12,24 @@
     <color name="nav_bar_background">#1A1A1A</color>
     <color name="divider_color">#2C2C2C</color>
     <color name="ripple_light">#33FFFFFF</color>
+
+    <!-- Midnight Melodies Theme -->
+    <color name="midnight_surface">#131313</color>
+    <color name="midnight_surface_container">#201F1F</color>
+    <color name="midnight_surface_container_high">#2A2A2A</color>
+    <color name="midnight_surface_container_low">#1C1B1B</color>
+    <color name="midnight_on_surface">#E5E2E1</color>
+    <color name="midnight_on_surface_variant">#CBC3D7</color>
+    <color name="midnight_primary">#D0BCFF</color>
+    <color name="midnight_on_primary">#3C0091</color>
+    <color name="midnight_primary_container">#A078FF</color>
+    <color name="midnight_secondary">#4CD7F6</color>
+    <color name="midnight_on_secondary">#003640</color>
+    <color name="midnight_tertiary">#FFB869</color>
+    <color name="midnight_outline">#958EA0</color>
+    <color name="midnight_outline_variant">#494454</color>
+    <color name="midnight_error">#FFB4AB</color>
+    <color name="midnight_error_container">#93000A</color>
+    <color name="midnight_surface_bright">#393939</color>
+    <color name="midnight_surface_dim">#131313</color>
 </resources>

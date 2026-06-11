@@ -2,6 +2,10 @@ package com.example.youtubeshield
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import java.net.URL
+import java.util.concurrent.ConcurrentHashMap
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
 
@@ -14,6 +18,7 @@ class PlaylistWidgetService : RemoteViewsService() {
 class PlaylistViewsFactory(private val context: Context) : RemoteViewsService.RemoteViewsFactory {
 
     private var items: List<PlaylistRepository.PlaylistItem> = emptyList()
+    private val thumbnailCache = ConcurrentHashMap<String, Bitmap>()
 
     private fun getVideoId(url: String?): String? {
         if (url.isNullOrEmpty()) return null
@@ -24,33 +29,39 @@ class PlaylistViewsFactory(private val context: Context) : RemoteViewsService.Re
                 android.net.Uri.parse("https://m.youtube.com" + if (url.startsWith("/")) url else "/$url")
             }
             val v = parsedUri.getQueryParameter("v")
-            if (!v.isNullOrEmpty()) {
-                return v
-            }
+            if (!v.isNullOrEmpty()) return v
             val path = parsedUri.path
-            if (path != null && path.contains("/shorts/")) {
-                return parsedUri.lastPathSegment
-            }
+            if (path != null && path.contains("/shorts/")) return parsedUri.lastPathSegment
             if (url.contains("watch?v=")) {
                 val parts = url.split("watch?v=")
-                if (parts.size > 1) {
-                    return parts[1].split("&")[0]
-                }
+                if (parts.size > 1) return parts[1].split("&")[0]
             }
             if (url.contains("/shorts/")) {
                 val parts = url.split("/shorts/")
-                if (parts.size > 1) {
-                    return parts[1].split("?")[0].split("/")[0]
-                }
+                if (parts.size > 1) return parts[1].split("?")[0].split("/")[0]
             }
-        } catch (e: Exception) {
-            // Ignorar
+        } catch (_: Exception) {
         }
         return null
     }
 
+    private fun loadThumbnail(videoId: String): Bitmap? {
+        try {
+            val url = URL("https://img.youtube.com/vi/$videoId/default.jpg")
+            val connection = url.openConnection()
+            connection.connectTimeout = 3000
+            connection.readTimeout = 3000
+            val bitmap = BitmapFactory.decodeStream(connection.getInputStream())
+            if (bitmap != null) {
+                thumbnailCache[videoId] = bitmap
+            }
+            return bitmap
+        } catch (_: Exception) {
+            return null
+        }
+    }
+
     override fun onCreate() {
-        // Inicialización
     }
 
     override fun onDataSetChanged() {
@@ -59,6 +70,7 @@ class PlaylistViewsFactory(private val context: Context) : RemoteViewsService.Re
 
     override fun onDestroy() {
         items = emptyList()
+        thumbnailCache.clear()
     }
 
     override fun getCount(): Int {
@@ -71,27 +83,35 @@ class PlaylistViewsFactory(private val context: Context) : RemoteViewsService.Re
         val item = items[position]
         val views = RemoteViews(context.packageName, R.layout.widget_playlist_item)
 
-        // Comprobar si este elemento es el que se está reproduciendo actualmente utilizando IDs de video
-        val currentPlaying = PlaylistRepository.currentPlayingUrl
-        val playingId = getVideoId(currentPlaying)
+        val playingId = getVideoId(PlaylistRepository.currentPlayingUrl)
         val itemId = getVideoId(item.url)
-        val isCurrent = !playingId.isNullOrEmpty() && !itemId.isNullOrEmpty() && playingId == itemId
+        val isCurrent = playingId != null && itemId != null && playingId == itemId
 
         if (isCurrent) {
-            views.setTextViewText(R.id.itemTitle, "▶ ${item.title}")
-            views.setTextColor(R.id.itemTitle, android.graphics.Color.parseColor("#FF2A2A"))
+            views.setTextViewText(R.id.itemTitle, item.title)
+            views.setTextColor(R.id.itemTitle, android.graphics.Color.parseColor("#FFD0BCFF"))
             views.setViewVisibility(R.id.itemIndicator, android.view.View.VISIBLE)
         } else {
             views.setTextViewText(R.id.itemTitle, item.title)
-            views.setTextColor(R.id.itemTitle, android.graphics.Color.parseColor("#F3F3F5"))
+            views.setTextColor(R.id.itemTitle, android.graphics.Color.parseColor("#FFE5E2E1"))
             views.setViewVisibility(R.id.itemIndicator, android.view.View.INVISIBLE)
         }
 
         views.setTextViewText(R.id.itemChannel, item.channel)
 
-        // Intent de relleno para el elemento individual.
-        // Cuando el elemento se cliquea, se le añade este Intent de relleno al PendingIntentTemplate
-        // configurado en el WidgetProvider para lanzar o cambiar de canción.
+        val videoId = getVideoId(item.url)
+        if (videoId != null) {
+            val cached = thumbnailCache[videoId]
+            if (cached != null) {
+                views.setImageViewBitmap(R.id.itemThumbnail, cached)
+            } else {
+                val bitmap = loadThumbnail(videoId)
+                if (bitmap != null) {
+                    views.setImageViewBitmap(R.id.itemThumbnail, bitmap)
+                }
+            }
+        }
+
         val fillInIntent = Intent().apply {
             putExtra("video_url", item.url)
             putExtra("video_title", item.title)

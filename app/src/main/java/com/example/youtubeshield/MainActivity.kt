@@ -551,10 +551,7 @@ class MainActivity : AppCompatActivity() {
                             PlaylistRepository.playlist = newPlaylist
                         }
                         PlaylistRepository.currentPlayingUrl = currentUrl
-                        val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(this@MainActivity)
-                        val thisWidget = android.content.ComponentName(this@MainActivity, PlaylistWidgetProvider::class.java)
-                        val widgetIds = appWidgetManager.getAppWidgetIds(thisWidget)
-                        appWidgetManager.notifyAppWidgetViewDataChanged(widgetIds, R.id.widgetListView)
+                        PlaylistWidgetProvider.refreshPlaylist(this@MainActivity)
                     }
 
                     if (urlChanged && newVideoId != null) {
