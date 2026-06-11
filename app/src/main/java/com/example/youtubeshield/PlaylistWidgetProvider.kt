@@ -138,12 +138,6 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
             val nextPending = PendingIntent.getBroadcast(context, 12, nextIntent, flags)
             views.setOnClickPendingIntent(R.id.widgetNext, nextPending)
 
-            val launchIntent = Intent(context, MainActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            }
-            val appPending = PendingIntent.getActivity(context, 13, launchIntent, flags)
-            views.setOnClickPendingIntent(R.id.widgetShuffle, appPending)
-            views.setOnClickPendingIntent(R.id.widgetFavorite, appPending)
         }
 
         fun updateWidget(context: Context) {
