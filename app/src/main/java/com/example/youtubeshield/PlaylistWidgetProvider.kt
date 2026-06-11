@@ -95,7 +95,12 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
                 }
                 if (match != null) {
                     views.setTextViewText(R.id.nowPlayingTitle, match.title)
-                    views.setTextViewText(R.id.nowPlayingArtist, match.channel)
+                    val artist = if (match.channel.isNotEmpty() && match.channel != match.title) {
+                        match.channel
+                    } else {
+                        "YouTube Shield"
+                    }
+                    views.setTextViewText(R.id.nowPlayingArtist, artist)
                     return
                 }
             }
@@ -164,6 +169,33 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
                 updatePlayPauseIcon(views)
                 appWidgetManager.partiallyUpdateAppWidget(appWidgetId, views)
             }
+
+            loadNowPlayingThumbnail(context, widgetIds)
+        }
+
+        private fun loadNowPlayingThumbnail(context: Context, widgetIds: IntArray) {
+            val currentUrl = PlaylistRepository.currentPlayingUrl
+            val videoId = getVideoId(currentUrl) ?: return
+            val thumbUrl = "https://img.youtube.com/vi/$videoId/default.jpg"
+
+            Thread {
+                try {
+                    val url = java.net.URL(thumbUrl)
+                    val connection = url.openConnection()
+                    connection.connectTimeout = 3000
+                    connection.readTimeout = 3000
+                    val bitmap = android.graphics.BitmapFactory.decodeStream(connection.getInputStream())
+                    if (bitmap != null) {
+                        for (appWidgetId in widgetIds) {
+                            val views = RemoteViews(context.packageName, R.layout.widget_playlist)
+                            views.setImageViewBitmap(R.id.nowPlayingThumbnail, bitmap)
+                            val appWidgetManager = AppWidgetManager.getInstance(context)
+                            appWidgetManager.partiallyUpdateAppWidget(appWidgetId, views)
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+            }.start()
         }
     }
 

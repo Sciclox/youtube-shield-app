@@ -11,4 +11,7 @@ object PlaylistRepository {
 
     @Volatile
     var isPlaying: Boolean = false
+
+    @Volatile
+    var currentThumbnailUrl: String? = null
 }
