@@ -49,25 +49,25 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:padding="8dp"
+        android:padding="10dp"
         android:background="@drawable/widget_now_playing_bg"
         android:layout_marginBottom="8dp">
 
         <FrameLayout
-            android:layout_width="40dp"
-            android:layout_height="40dp">
+            android:layout_width="56dp"
+            android:layout_height="56dp">
 
             <ImageView
                 android:id="@+id/nowPlayingThumbnail"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
                 android:background="@drawable/widget_thumbnail_bg"
                 android:scaleType="centerCrop"
                 android:contentDescription="Now Playing Thumbnail" />
 
             <ImageView
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
                 android:background="#40000000"
                 android:src="@drawable/ic_now_playing"
                 android:scaleType="center"
@@ -78,8 +78,8 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="10dp"
-            android:layout_marginEnd="8dp"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="10dp"
             android:orientation="vertical">
 
             <TextView
@@ -87,7 +87,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textColor="#FFE5E2E1"
-                android:textSize="13sp"
+                android:textSize="14sp"
                 android:textStyle="bold"
                 android:maxLines="1"
                 android:ellipsize="end"
@@ -99,7 +99,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:textColor="#FFCBC3D7"
-                android:textSize="10sp"
+                android:textSize="11sp"
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:text="YouTube Shield"
@@ -108,11 +108,11 @@
 
         <ImageButton
             android:id="@+id/widgetPlayPause"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:src="@drawable/ic_play_arrow"
             android:background="@drawable/widget_play_button_bg"
-            android:padding="6dp"
+            android:padding="8dp"
             android:scaleType="centerInside"
             android:contentDescription="Play/Pause" />
     </LinearLayout>
@@ -184,7 +184,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center_vertical"
+        android:gravity="center"
         android:paddingTop="8dp">
 
         <ImageButton
@@ -195,6 +195,7 @@
             android:background="@null"
             android:scaleType="centerInside"
             android:padding="6dp"
+            android:layout_marginEnd="8dp"
             android:contentDescription="Shuffle" />
 
         <ImageButton
@@ -205,24 +206,19 @@
             android:background="@null"
             android:scaleType="centerInside"
             android:padding="6dp"
+            android:layout_marginEnd="12dp"
             android:contentDescription="Previous" />
 
-        <FrameLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="center">
-
-            <ImageButton
-                android:id="@+id/widgetPlayPauseMain"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:src="@drawable/ic_play_arrow"
-                android:background="@drawable/widget_play_button_bg"
-                android:scaleType="centerInside"
-                android:padding="10dp"
-                android:contentDescription="Play/Pause" />
-        </FrameLayout>
+        <ImageButton
+            android:id="@+id/widgetPlayPauseMain"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_play_arrow"
+            android:background="@drawable/widget_play_button_bg"
+            android:scaleType="centerInside"
+            android:padding="12dp"
+            android:layout_marginEnd="12dp"
+            android:contentDescription="Play/Pause" />
 
         <ImageButton
             android:id="@+id/widgetNext"
@@ -232,6 +228,7 @@
             android:background="@null"
             android:scaleType="centerInside"
             android:padding="6dp"
+            android:layout_marginEnd="8dp"
             android:contentDescription="Next" />
 
         <ImageButton
