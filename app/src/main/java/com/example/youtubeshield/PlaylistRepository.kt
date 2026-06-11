@@ -8,4 +8,7 @@ object PlaylistRepository {
 
     @Volatile
     var currentPlayingUrl: String? = null
+
+    @Volatile
+    var isPlaying: Boolean = false
 }

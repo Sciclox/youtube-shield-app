@@ -546,16 +546,17 @@ class MainActivity : AppCompatActivity() {
                     val shouldKeepOldPlaylist = newPlaylist.isEmpty() && isWatchOrShort
                     val playlistChanged = !shouldKeepOldPlaylist && (oldUrls != newUrls)
                     
-                    if (playlistChanged || urlChanged) {
+                    if (playlistChanged || urlChanged || PlaylistRepository.isPlaying != isPlaying) {
                         if (!shouldKeepOldPlaylist) {
                             PlaylistRepository.playlist = newPlaylist
                         }
                         PlaylistRepository.currentPlayingUrl = currentUrl
+                        PlaylistRepository.isPlaying = isPlaying
                         PlaylistWidgetProvider.refreshPlaylist(this@MainActivity)
                     }
 
                     if (urlChanged && newVideoId != null) {
-                        triggerShieldPulse(newVideoId, shouldReload = false)
+                        triggerShieldPulse(newVideoId, shouldReload = true)
                     }
 
                     if (isPlaying && isShieldActive && !isDynamicShieldActive) {
@@ -1384,6 +1385,9 @@ class MainActivity : AppCompatActivity() {
         val thisWidget = android.content.ComponentName(this, PlaylistWidgetProvider::class.java)
         val widgetIds = appWidgetManager.getAppWidgetIds(thisWidget)
         appWidgetManager.notifyAppWidgetViewDataChanged(widgetIds, R.id.widgetListView)
+
+        PlaylistRepository.isPlaying = false
+        PlaylistWidgetProvider.refreshPlaylist(this)
 
         val videoId = getVideoId(fullUrl)
         triggerShieldPulse(videoId, shouldReload = false)

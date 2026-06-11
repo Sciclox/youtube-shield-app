@@ -53,6 +53,13 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
             }
         }
 
+        private fun updatePlayPauseIcon(views: RemoteViews) {
+            val isPlaying = PlaylistRepository.isPlaying
+            val playIcon = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play_arrow
+            views.setImageViewResource(R.id.widgetPlayPause, playIcon)
+            views.setImageViewResource(R.id.widgetPlayPauseMain, playIcon)
+        }
+
         private fun buildWidgetViews(context: Context, appWidgetId: Int): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_playlist)
 
@@ -73,6 +80,7 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
             views.setPendingIntentTemplate(R.id.widgetListView, clickPendingIntent)
 
             updateNowPlayingText(context, views)
+            updatePlayPauseIcon(views)
             setupControlButtons(context, views)
 
             return views
@@ -153,6 +161,7 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
             for (appWidgetId in widgetIds) {
                 val views = RemoteViews(context.packageName, R.layout.widget_playlist)
                 updateNowPlayingText(context, views)
+                updatePlayPauseIcon(views)
                 appWidgetManager.partiallyUpdateAppWidget(appWidgetId, views)
             }
         }
