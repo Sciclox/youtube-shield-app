@@ -730,7 +730,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        shieldPulseHandler.post(shieldPulseRunnable)
+        shieldPulseHandler.postDelayed(shieldPulseRunnable, 100)
     }
 
     private fun setupWebView() {
