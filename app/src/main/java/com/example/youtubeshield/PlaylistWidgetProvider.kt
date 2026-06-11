@@ -184,12 +184,13 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
                 }
             }
             ACTION_WIDGET_TOGGLE -> {
-                val playIntent = Intent(MediaPlaybackService.ACTION_PLAY).setPackage(context.packageName)
-                context.sendBroadcast(playIntent)
-                val launchIntent = Intent(context, MainActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                val action = if (PlaylistRepository.isPlaying) {
+                    MediaPlaybackService.ACTION_PAUSE
+                } else {
+                    MediaPlaybackService.ACTION_PLAY
                 }
-                context.startActivity(launchIntent)
+                val toggleIntent = Intent(action).setPackage(context.packageName)
+                context.sendBroadcast(toggleIntent)
             }
             ACTION_WIDGET_NEXT -> {
                 val idx = getCurrentPlaylistIndex()
