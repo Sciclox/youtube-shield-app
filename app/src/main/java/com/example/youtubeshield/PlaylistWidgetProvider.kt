@@ -61,27 +61,27 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
         }
 
         private fun setupControlButtons(context: Context, views: RemoteViews) {
-            val flags = getPendingIntentFlags()
+            val pendingFlags = getPendingIntentFlags()
 
             val playPauseIntent = Intent(context, PlaylistWidgetProvider::class.java).apply {
                 action = "com.example.youtubeshield.ACTION_TOGGLE_PLAYBACK"
             }
-            val playPausePending = PendingIntent.getBroadcast(context, 10, playPauseIntent, flags)
+            val playPausePending = PendingIntent.getBroadcast(context, 10, playPauseIntent, pendingFlags)
             views.setOnClickPendingIntent(R.id.widgetPlayPause, playPausePending)
             views.setOnClickPendingIntent(R.id.widgetPlayPauseMain, playPausePending)
 
             val prevIntent = Intent(MediaPlaybackService.ACTION_PREV).setPackage(context.packageName)
-            val prevPending = PendingIntent.getBroadcast(context, 11, prevIntent, flags)
+            val prevPending = PendingIntent.getBroadcast(context, 11, prevIntent, pendingFlags)
             views.setOnClickPendingIntent(R.id.widgetPrevious, prevPending)
 
             val nextIntent = Intent(MediaPlaybackService.ACTION_NEXT).setPackage(context.packageName)
-            val nextPending = PendingIntent.getBroadcast(context, 12, nextIntent, flags)
+            val nextPending = PendingIntent.getBroadcast(context, 12, nextIntent, pendingFlags)
             views.setOnClickPendingIntent(R.id.widgetNext, nextPending)
 
             val launchIntent = Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
-            val appPending = PendingIntent.getActivity(context, 13, launchIntent, flags)
+            val appPending = PendingIntent.getActivity(context, 13, launchIntent, pendingFlags)
             views.setOnClickPendingIntent(R.id.widgetShuffle, appPending)
             views.setOnClickPendingIntent(R.id.widgetFavorite, appPending)
         }
@@ -137,7 +137,7 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
                         context.sendBroadcast(changeIntent)
                     } else {
                         val launchIntent = Intent(context, MainActivity::class.java).apply {
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                             putExtra("video_url", url)
                         }
                         context.startActivity(launchIntent)
@@ -146,7 +146,7 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
             }
             "com.example.youtubeshield.ACTION_TOGGLE_PLAYBACK" -> {
                 val launchIntent = Intent(context, MainActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }
                 context.startActivity(launchIntent)
             }
