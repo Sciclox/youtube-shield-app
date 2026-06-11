@@ -14,6 +14,34 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
 
     companion object {
         const val ACTION_WIDGET_PLAY = "com.example.youtubeshield.ACTION_WIDGET_PLAY"
+        const val ACTION_WIDGET_TOGGLE = "com.example.youtubeshield.ACTION_WIDGET_TOGGLE"
+        const val ACTION_WIDGET_NEXT = "com.example.youtubeshield.ACTION_WIDGET_NEXT"
+        const val ACTION_WIDGET_PREV = "com.example.youtubeshield.ACTION_WIDGET_PREV"
+
+        private fun getVideoId(url: String?): String? {
+            if (url.isNullOrEmpty()) return null
+            try {
+                val parsedUri = if (url.startsWith("http://") || url.startsWith("https://")) {
+                    Uri.parse(url)
+                } else {
+                    Uri.parse("https://m.youtube.com" + if (url.startsWith("/")) url else "/$url")
+                }
+                val v = parsedUri.getQueryParameter("v")
+                if (!v.isNullOrEmpty()) return v
+                val path = parsedUri.path
+                if (path != null && path.contains("/shorts/")) return parsedUri.lastPathSegment
+                if (url.contains("watch?v=")) {
+                    val parts = url.split("watch?v=")
+                    if (parts.size > 1) return parts[1].split("&")[0]
+                }
+                if (url.contains("/shorts/")) {
+                    val parts = url.split("/shorts/")
+                    if (parts.size > 1) return parts[1].split("?")[0].split("/")[0]
+                }
+            } catch (_: Exception) {
+            }
+            return null
+        }
 
         private fun getPendingIntentFlags(): Int {
             return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -39,49 +67,61 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
                 action = ACTION_WIDGET_PLAY
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             }
-
             val clickPendingIntent = PendingIntent.getBroadcast(
                 context, 0, clickIntent, getPendingIntentFlags()
             )
             views.setPendingIntentTemplate(R.id.widgetListView, clickPendingIntent)
 
-            val currentUrl = PlaylistRepository.currentPlayingUrl
-            val currentItem = PlaylistRepository.playlist.firstOrNull { it.url == currentUrl }
-            if (currentItem != null) {
-                views.setTextViewText(R.id.nowPlayingTitle, currentItem.title)
-                views.setTextViewText(R.id.nowPlayingArtist, currentItem.channel)
-            } else {
-                views.setTextViewText(R.id.nowPlayingTitle, "No song playing")
-                views.setTextViewText(R.id.nowPlayingArtist, "YouTube Shield")
-            }
+            updateNowPlayingText(context, views)
 
             setupControlButtons(context, views)
 
             return views
         }
 
-        private fun setupControlButtons(context: Context, views: RemoteViews) {
-            val pendingFlags = getPendingIntentFlags()
-
-            val playPauseIntent = Intent(context, PlaylistWidgetProvider::class.java).apply {
-                action = "com.example.youtubeshield.ACTION_TOGGLE_PLAYBACK"
+        private fun updateNowPlayingText(context: Context, views: RemoteViews) {
+            val currentUrl = PlaylistRepository.currentPlayingUrl
+            val currentId = getVideoId(currentUrl)
+            if (currentId != null) {
+                val match = PlaylistRepository.playlist.firstOrNull {
+                    getVideoId(it.url) == currentId
+                }
+                if (match != null) {
+                    views.setTextViewText(R.id.nowPlayingTitle, match.title)
+                    views.setTextViewText(R.id.nowPlayingArtist, match.channel)
+                    return
+                }
             }
-            val playPausePending = PendingIntent.getBroadcast(context, 10, playPauseIntent, pendingFlags)
-            views.setOnClickPendingIntent(R.id.widgetPlayPause, playPausePending)
-            views.setOnClickPendingIntent(R.id.widgetPlayPauseMain, playPausePending)
+            views.setTextViewText(R.id.nowPlayingTitle, "No song playing")
+            views.setTextViewText(R.id.nowPlayingArtist, "YouTube Shield")
+        }
 
-            val prevIntent = Intent(MediaPlaybackService.ACTION_PREV).setPackage(context.packageName)
-            val prevPending = PendingIntent.getBroadcast(context, 11, prevIntent, pendingFlags)
+        private fun setupControlButtons(context: Context, views: RemoteViews) {
+            val flags = getPendingIntentFlags()
+
+            val toggleIntent = Intent(context, PlaylistWidgetProvider::class.java).apply {
+                action = ACTION_WIDGET_TOGGLE
+            }
+            val togglePending = PendingIntent.getBroadcast(context, 10, toggleIntent, flags)
+            views.setOnClickPendingIntent(R.id.widgetPlayPause, togglePending)
+            views.setOnClickPendingIntent(R.id.widgetPlayPauseMain, togglePending)
+
+            val prevIntent = Intent(context, PlaylistWidgetProvider::class.java).apply {
+                action = ACTION_WIDGET_PREV
+            }
+            val prevPending = PendingIntent.getBroadcast(context, 11, prevIntent, flags)
             views.setOnClickPendingIntent(R.id.widgetPrevious, prevPending)
 
-            val nextIntent = Intent(MediaPlaybackService.ACTION_NEXT).setPackage(context.packageName)
-            val nextPending = PendingIntent.getBroadcast(context, 12, nextIntent, pendingFlags)
+            val nextIntent = Intent(context, PlaylistWidgetProvider::class.java).apply {
+                action = ACTION_WIDGET_NEXT
+            }
+            val nextPending = PendingIntent.getBroadcast(context, 12, nextIntent, flags)
             views.setOnClickPendingIntent(R.id.widgetNext, nextPending)
 
             val launchIntent = Intent(context, MainActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
-            val appPending = PendingIntent.getActivity(context, 13, launchIntent, pendingFlags)
+            val appPending = PendingIntent.getActivity(context, 13, launchIntent, flags)
             views.setOnClickPendingIntent(R.id.widgetShuffle, appPending)
             views.setOnClickPendingIntent(R.id.widgetFavorite, appPending)
         }
@@ -105,12 +145,7 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
 
             for (appWidgetId in widgetIds) {
                 val views = RemoteViews(context.packageName, R.layout.widget_playlist)
-                val currentUrl = PlaylistRepository.currentPlayingUrl
-                val currentItem = PlaylistRepository.playlist.firstOrNull { it.url == currentUrl }
-                if (currentItem != null) {
-                    views.setTextViewText(R.id.nowPlayingTitle, currentItem.title)
-                    views.setTextViewText(R.id.nowPlayingArtist, currentItem.channel)
-                }
+                updateNowPlayingText(context, views)
                 appWidgetManager.partiallyUpdateAppWidget(appWidgetId, views)
             }
         }
@@ -144,11 +179,33 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
                     }
                 }
             }
-            "com.example.youtubeshield.ACTION_TOGGLE_PLAYBACK" -> {
+            ACTION_WIDGET_TOGGLE -> {
+                val playIntent = Intent(MediaPlaybackService.ACTION_PLAY).setPackage(context.packageName)
+                context.sendBroadcast(playIntent)
                 val launchIntent = Intent(context, MainActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }
                 context.startActivity(launchIntent)
+            }
+            ACTION_WIDGET_NEXT -> {
+                val nextIntent = Intent(MediaPlaybackService.ACTION_NEXT).setPackage(context.packageName)
+                context.sendBroadcast(nextIntent)
+                if (!MainActivity.isActivityRunning) {
+                    val launchIntent = Intent(context, MainActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    }
+                    context.startActivity(launchIntent)
+                }
+            }
+            ACTION_WIDGET_PREV -> {
+                val prevIntent = Intent(MediaPlaybackService.ACTION_PREV).setPackage(context.packageName)
+                context.sendBroadcast(prevIntent)
+                if (!MainActivity.isActivityRunning) {
+                    val launchIntent = Intent(context, MainActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    }
+                    context.startActivity(launchIntent)
+                }
             }
         }
         super.onReceive(context, intent)

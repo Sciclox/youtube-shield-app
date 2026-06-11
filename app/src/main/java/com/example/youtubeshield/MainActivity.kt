@@ -555,7 +555,7 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     if (urlChanged && newVideoId != null) {
-                        triggerShieldPulse(newVideoId, shouldReload = true)
+                        triggerShieldPulse(newVideoId, shouldReload = false)
                     }
 
                     if (isPlaying && isShieldActive && !isDynamicShieldActive) {
@@ -1208,6 +1208,8 @@ class MainActivity : AppCompatActivity() {
                         
                         // Evitar detención por foco
                         window.addEventListener('blur', function(e) { e.stopImmediatePropagation(); }, true);
+                        window.addEventListener('webkitvisibilitychange', function(e) { e.stopImmediatePropagation(); }, true);
+                        document.addEventListener('webkitvisibilitychange', function(e) { e.stopImmediatePropagation(); }, true);
                         
                         window.shieldVisibilityOverridden = true;
                         console.log('Shield: Visibility API overridden successfully.');

@@ -89,7 +89,7 @@ class PlaylistViewsFactory(private val context: Context) : RemoteViewsService.Re
 
         if (isCurrent) {
             views.setTextViewText(R.id.itemTitle, item.title)
-            views.setTextColor(R.id.itemTitle, android.graphics.Color.parseColor("#FFD0BCFF"))
+            views.setTextColor(R.id.itemTitle, android.graphics.Color.parseColor("#FFFF2A2A"))
             views.setViewVisibility(R.id.itemIndicator, android.view.View.VISIBLE)
         } else {
             views.setTextViewText(R.id.itemTitle, item.title)
