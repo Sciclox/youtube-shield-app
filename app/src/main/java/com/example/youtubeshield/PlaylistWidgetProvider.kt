@@ -73,7 +73,6 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
             views.setPendingIntentTemplate(R.id.widgetListView, clickPendingIntent)
 
             updateNowPlayingText(context, views)
-
             setupControlButtons(context, views)
 
             return views
@@ -94,6 +93,14 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
             }
             views.setTextViewText(R.id.nowPlayingTitle, "No song playing")
             views.setTextViewText(R.id.nowPlayingArtist, "YouTube Shield")
+        }
+
+        private fun getCurrentPlaylistIndex(): Int {
+            val currentId = getVideoId(PlaylistRepository.currentPlayingUrl)
+            if (currentId == null) return -1
+            return PlaylistRepository.playlist.indexOfFirst {
+                getVideoId(it.url) == currentId
+            }
         }
 
         private fun setupControlButtons(context: Context, views: RemoteViews) {
@@ -164,19 +171,7 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
             ACTION_WIDGET_PLAY -> {
                 val url = intent.getStringExtra("video_url")
                 if (!url.isNullOrEmpty()) {
-                    if (MainActivity.isActivityRunning) {
-                        val changeIntent = Intent("com.example.youtubeshield.ACTION_CHANGE_VIDEO").apply {
-                            putExtra("video_url", url)
-                            setPackage(context.packageName)
-                        }
-                        context.sendBroadcast(changeIntent)
-                    } else {
-                        val launchIntent = Intent(context, MainActivity::class.java).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                            putExtra("video_url", url)
-                        }
-                        context.startActivity(launchIntent)
-                    }
+                    navigateToVideo(context, url)
                 }
             }
             ACTION_WIDGET_TOGGLE -> {
@@ -188,9 +183,11 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
                 context.startActivity(launchIntent)
             }
             ACTION_WIDGET_NEXT -> {
-                val nextIntent = Intent(MediaPlaybackService.ACTION_NEXT).setPackage(context.packageName)
-                context.sendBroadcast(nextIntent)
-                if (!MainActivity.isActivityRunning) {
+                val idx = getCurrentPlaylistIndex()
+                if (idx >= 0 && idx + 1 < PlaylistRepository.playlist.size) {
+                    val nextUrl = PlaylistRepository.playlist[idx + 1].url
+                    navigateToVideo(context, nextUrl)
+                } else {
                     val launchIntent = Intent(context, MainActivity::class.java).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                     }
@@ -198,9 +195,11 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
                 }
             }
             ACTION_WIDGET_PREV -> {
-                val prevIntent = Intent(MediaPlaybackService.ACTION_PREV).setPackage(context.packageName)
-                context.sendBroadcast(prevIntent)
-                if (!MainActivity.isActivityRunning) {
+                val idx = getCurrentPlaylistIndex()
+                if (idx > 0) {
+                    val prevUrl = PlaylistRepository.playlist[idx - 1].url
+                    navigateToVideo(context, prevUrl)
+                } else {
                     val launchIntent = Intent(context, MainActivity::class.java).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                     }
@@ -209,5 +208,21 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
             }
         }
         super.onReceive(context, intent)
+    }
+
+    private fun navigateToVideo(context: Context, url: String) {
+        if (MainActivity.isActivityRunning) {
+            val changeIntent = Intent("com.example.youtubeshield.ACTION_CHANGE_VIDEO").apply {
+                putExtra("video_url", url)
+                setPackage(context.packageName)
+            }
+            context.sendBroadcast(changeIntent)
+        } else {
+            val launchIntent = Intent(context, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra("video_url", url)
+            }
+            context.startActivity(launchIntent)
+        }
     }
 }

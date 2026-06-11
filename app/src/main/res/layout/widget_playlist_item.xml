@@ -9,7 +9,7 @@
     android:paddingTop="6dp"
     android:paddingBottom="6dp">
 
-    <!-- Active Indicator (Purple) -->
+    <!-- Active Indicator (Red bar) -->
     <ImageView
         android:id="@+id/itemIndicator"
         android:layout_width="3dp"
@@ -23,21 +23,38 @@
         android:contentDescription="Playing Indicator" />
 
     <!-- Thumbnail -->
-    <ImageView
-        android:id="@+id/itemThumbnail"
+    <FrameLayout
+        android:id="@+id/itemThumbnailContainer"
         android:layout_width="40dp"
         android:layout_height="40dp"
         android:layout_toEndOf="@id/itemIndicator"
-        android:layout_marginStart="8dp"
-        android:background="@drawable/widget_thumbnail_bg"
-        android:scaleType="centerCrop"
-        android:contentDescription="Thumbnail" />
+        android:layout_marginStart="8dp">
+
+        <ImageView
+            android:id="@+id/itemThumbnail"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/widget_thumbnail_bg"
+            android:scaleType="centerCrop"
+            android:contentDescription="Thumbnail" />
+
+        <!-- Play icon overlay for active item -->
+        <ImageView
+            android:id="@+id/itemPlayOverlay"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="#80000000"
+            android:src="@drawable/ic_play_arrow"
+            android:scaleType="center"
+            android:visibility="gone"
+            android:contentDescription="Now Playing" />
+    </FrameLayout>
 
     <!-- Text Container -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_toEndOf="@id/itemThumbnail"
+        android:layout_toEndOf="@id/itemThumbnailContainer"
         android:layout_marginStart="10dp"
         android:layout_centerVertical="true"
         android:orientation="vertical">
@@ -51,7 +68,8 @@
             android:textStyle="bold"
             android:maxLines="1"
             android:ellipsize="end"
-            android:lineSpacingMultiplier="1.05" />
+            android:lineSpacingMultiplier="1.05"
+            android:fontFamily="sans-serif" />
 
         <TextView
             android:id="@+id/itemChannel"
@@ -61,7 +79,8 @@
             android:textSize="10sp"
             android:layout_marginTop="2dp"
             android:maxLines="1"
-            android:ellipsize="end" />
+            android:ellipsize="end"
+            android:fontFamily="sans-serif" />
     </LinearLayout>
 
 </RelativeLayout>

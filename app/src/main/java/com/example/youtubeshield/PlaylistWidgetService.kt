@@ -88,13 +88,18 @@ class PlaylistViewsFactory(private val context: Context) : RemoteViewsService.Re
         val isCurrent = playingId != null && itemId != null && playingId == itemId
 
         if (isCurrent) {
+            views.setInt(R.id.itemContainer, "setBackgroundResource", R.drawable.widget_item_active_bg)
             views.setTextViewText(R.id.itemTitle, item.title)
             views.setTextColor(R.id.itemTitle, android.graphics.Color.parseColor("#FFFF2A2A"))
             views.setViewVisibility(R.id.itemIndicator, android.view.View.VISIBLE)
+            views.setViewVisibility(R.id.itemPlayOverlay, android.view.View.VISIBLE)
+            views.setImageViewResource(R.id.itemPlayOverlay, R.drawable.ic_play_arrow)
         } else {
+            views.setInt(R.id.itemContainer, "setBackgroundResource", R.drawable.widget_item_bg)
             views.setTextViewText(R.id.itemTitle, item.title)
             views.setTextColor(R.id.itemTitle, android.graphics.Color.parseColor("#FFE5E2E1"))
             views.setViewVisibility(R.id.itemIndicator, android.view.View.INVISIBLE)
+            views.setViewVisibility(R.id.itemPlayOverlay, android.view.View.GONE)
         }
 
         views.setTextViewText(R.id.itemChannel, item.channel)
@@ -115,6 +120,7 @@ class PlaylistViewsFactory(private val context: Context) : RemoteViewsService.Re
         val fillInIntent = Intent().apply {
             putExtra("video_url", item.url)
             putExtra("video_title", item.title)
+            putExtra("video_position", position)
         }
         views.setOnClickFillInIntent(R.id.itemContainer, fillInIntent)
 
@@ -126,7 +132,7 @@ class PlaylistViewsFactory(private val context: Context) : RemoteViewsService.Re
     }
 
     override fun getViewTypeCount(): Int {
-        return 1
+        return 2
     }
 
     override fun getItemId(position: Int): Long {

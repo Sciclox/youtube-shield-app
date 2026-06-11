@@ -20,6 +20,7 @@
             android:layout_alignParentStart="true"
             android:text="Now Playing"
             android:textColor="#FFE5E2E1"
+            android:fontFamily="sans-serif"
             android:textSize="16sp"
             android:textStyle="bold" />
 
@@ -36,6 +37,7 @@
             android:gravity="center_vertical"
             android:text="PLAYLIST"
             android:textColor="#FFFFFFFF"
+            android:fontFamily="sans-serif"
             android:textSize="9sp"
             android:textStyle="bold" />
     </RelativeLayout>
@@ -76,7 +78,8 @@
                 android:textStyle="bold"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:text="No song playing" />
+                android:text="No song playing"
+                android:fontFamily="sans-serif" />
 
             <TextView
                 android:id="@+id/nowPlayingArtist"
@@ -86,7 +89,8 @@
                 android:textSize="10sp"
                 android:maxLines="1"
                 android:ellipsize="end"
-                android:text="YouTube Shield" />
+                android:text="YouTube Shield"
+                android:fontFamily="sans-serif" />
         </LinearLayout>
 
         <ImageButton
@@ -146,6 +150,7 @@
                 android:textColor="#FFE5E2E1"
                 android:textSize="12sp"
                 android:textStyle="bold"
+                android:fontFamily="sans-serif"
                 android:gravity="center" />
 
             <TextView
@@ -154,6 +159,7 @@
                 android:text="Open a YouTube video to see songs here."
                 android:textColor="#FFCBC3D7"
                 android:textSize="10sp"
+                android:fontFamily="sans-serif"
                 android:layout_marginTop="4dp"
                 android:gravity="center" />
         </LinearLayout>
