@@ -84,6 +84,9 @@ class PlayerOverlayService : Service() {
             gravity = Gravity.TOP or Gravity.START
             x = 0
             y = 200
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                blurBehindRadius = 30
+            }
         }
 
         windowManager?.addView(overlayView, params)

@@ -10,7 +10,9 @@
         android:id="@+id/overlayBubble"
         android:layout_width="56dp"
         android:layout_height="56dp"
-        android:visibility="visible">
+        android:visibility="visible"
+        android:background="@drawable/overlay_bubble_bg"
+        android:clipToOutline="true">
 
         <ImageView
             android:id="@+id/overlayBubbleThumbnail"
@@ -40,7 +42,7 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:visibility="gone"
-        android:background="@drawable/widget_now_playing_bg"
+        android:background="@drawable/overlay_expanded_bg"
         android:gravity="center_vertical"
         android:padding="8dp">
 
