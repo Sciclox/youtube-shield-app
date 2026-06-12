@@ -636,6 +636,7 @@ class MainActivity : AppCompatActivity() {
         val currentUrl = PlaylistRepository.currentPlayingUrl
         val currentId = getVideoId(currentUrl)
 
+        // Intentar navegar dentro de PlaylistRepository.playlist
         if (currentId != null && playlist.isNotEmpty()) {
             val currentIndex = playlist.indexOfFirst { item -> getVideoId(item.url) == currentId }
             val targetIndex = if (next) currentIndex + 1 else currentIndex - 1
@@ -647,18 +648,36 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (next) {
-            // Fallback: buscar el botón de siguiente video en la página
+            // Extraer URL del "Up Next" o primera recomendación desde la página
             val js = """
                 (function() {
-                    var btn = document.querySelector('.ytp-next-button, .next-button, .ytm-next-button, [class*="next-button"], button[aria-label*="Siguiente"], button[aria-label*="Next"]');
-                    if (btn) { btn.click(); return; }
-                    var firstRecom = document.querySelector('ytm-compact-video-renderer a, ytm-video-with-context-renderer a, .compact-media-item-image, a[href*="/watch"]');
-                    if (firstRecom) { firstRecom.click(); }
+                    // 1. Autoplay / Up Next
+                    var el = document.querySelector('ytm-autoplay-renderer a[href*="watch"], [class*="autoplay"] a[href*="watch"], ytm-compact-autoplay-renderer a[href*="watch"]');
+                    if (el) return el.href || el.getAttribute('href') || '';
+                    // 2. Primera recomendación normal
+                    el = document.querySelector('ytm-compact-video-renderer a[href*="watch"], ytm-video-with-context-renderer a[href*="watch"], .compact-media-item a[href*="watch"]');
+                    if (el) return el.href || el.getAttribute('href') || '';
+                    // 3. Cualquier enlace a watch (evitando list= que son mixes/playlists)
+                    var links = document.querySelectorAll('a[href*="/watch"]');
+                    for (var i = 0; i < links.length; i++) {
+                        var href = links[i].href || links[i].getAttribute('href') || '';
+                        if (href && !href.includes('list=')) return href;
+                    }
+                    return '';
                 })()
             """.trimIndent()
-            webView.evaluateJavascript(js, null)
+            webView.evaluateJavascript(js) { urlResult ->
+                if (urlResult != null && urlResult != "null" && urlResult != "\"null\"") {
+                    val cleanUrl = urlResult.trim('"')
+                    if (cleanUrl.isNotEmpty()) {
+                        changeVideo(cleanUrl)
+                    }
+                }
+            }
         } else {
-            webView.evaluateJavascript("window.history.back()", null)
+            if (webView.canGoBack()) {
+                webView.goBack()
+            }
         }
     }
 
