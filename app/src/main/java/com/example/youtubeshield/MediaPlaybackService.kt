@@ -96,6 +96,12 @@ class MediaPlaybackService : Service() {
         this.callback = callback
     }
 
+    fun updateThumbnail(thumbnail: android.graphics.Bitmap) {
+        currentThumbnailBitmap = thumbnail
+        val dominantColor = currentDominantColor ?: getDominantColor(thumbnail)
+        showNotification(currentTitle, currentIsPlaying, currentIsLooping, thumbnail, dominantColor)
+    }
+
     fun updatePlaybackPosition(position: Long, duration: Long, isPlaying: Boolean) {
         val state = PlaybackState.Builder()
             .setActions(

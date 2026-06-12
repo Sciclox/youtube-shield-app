@@ -71,7 +71,6 @@ class MainActivity : AppCompatActivity() {
     private var lastVideoId: String? = null
     private var currentThumbnail: Bitmap? = null
     private var loadedThumbnailVideoId: String? = null
-    private var lastMetadataVideoId: String = ""
 
     // Extractor de colores dinámicos
     private lateinit var colorExtractor: DynamicColorExtractor
@@ -590,14 +589,8 @@ class MainActivity : AppCompatActivity() {
                     }
                     
                     if (isWatchOrShort) {
-                        val notifyVideoId = currentVideoId?.take(11) // usar videoId como identificador
-                        val isNewVideo = notifyVideoId != null && notifyVideoId != lastMetadataVideoId
-                        if (isNewVideo || isPlaying != PlaylistRepository.isPlaying) {
-                            lastMetadataVideoId = notifyVideoId ?: ""
-                            playbackService?.updateMetadata(title, isPlaying, isLoopEnabled, currentThumbnail, position, duration)
-                        } else {
-                            playbackService?.updatePlaybackPosition(position, duration, isPlaying)
-                        }
+                        playbackService?.updateMetadata(title, isPlaying, isLoopEnabled, currentThumbnail, position, duration)
+                    }
                     }
 
                     // Gestionar Wake Lock según el estado de reproducción
@@ -639,19 +632,18 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             val finalBitmap = bitmap
-            runOnUiThread {
-                if (loadedThumbnailVideoId == videoId) {
-                    currentThumbnail = finalBitmap
-                    try {
-                        if (finalBitmap != null && isBound && playbackService != null) {
-                            val dominantColor = colorExtractor.extractDominantColor(finalBitmap)
-                            playbackService?.setNotificationColor(dominantColor)
+                runOnUiThread {
+                    if (loadedThumbnailVideoId == videoId) {
+                        currentThumbnail = finalBitmap
+                        try {
+                            if (finalBitmap != null && isBound && playbackService != null) {
+                                playbackService?.updateThumbnail(finalBitmap)
+                            }
+                        } catch (e: Exception) {
+                            // No bloquear si falla la extracción
                         }
-                    } catch (e: Exception) {
-                        // No bloquear si falla la extracción
                     }
                 }
-            }
         }.start()
     }
 
