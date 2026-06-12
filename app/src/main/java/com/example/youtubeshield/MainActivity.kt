@@ -266,28 +266,13 @@ class MainActivity : AppCompatActivity() {
 
             override fun onNext() {
                 runOnUiThread {
-                    // Botones inversos: Siguiente en el widget va al video anterior (historial)
-                    webView.evaluateJavascript("window.history.back()", null)
+                    navigatePlaylist(next = true)
                 }
             }
 
             override fun onPrevious() {
                 runOnUiThread {
-                    // Botones inversos: Atrás en el widget va al video siguiente (autoplay/click)
-                    val js = """
-                        (function() {
-                            var btn = document.querySelector('.ytp-next-button, .next-button, .ytm-next-button, [class*="next-button"]');
-                            if (btn) {
-                                btn.click();
-                                return;
-                            }
-                            var firstRecom = document.querySelector('ytm-compact-video-renderer a, ytm-video-with-context-renderer a, .compact-media-item-image, a[href*="/watch"]');
-                            if (firstRecom) {
-                                firstRecom.click();
-                            }
-                        })()
-                    """.trimIndent()
-                    webView.evaluateJavascript(js, null)
+                    navigatePlaylist(next = false)
                 }
             }
 
@@ -644,6 +629,37 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
         }.start()
+    }
+
+    private fun navigatePlaylist(next: Boolean) {
+        val playlist = PlaylistRepository.playlist
+        val currentUrl = PlaylistRepository.currentPlayingUrl
+        val currentId = getVideoId(currentUrl)
+
+        if (currentId != null && playlist.isNotEmpty()) {
+            val currentIndex = playlist.indexOfFirst { item -> getVideoId(item.url) == currentId }
+            val targetIndex = if (next) currentIndex + 1 else currentIndex - 1
+            if (currentIndex >= 0 && targetIndex in playlist.indices) {
+                val targetItem = playlist[targetIndex]
+                changeVideo(targetItem.url)
+                return
+            }
+        }
+
+        if (next) {
+            // Fallback: buscar el botón de siguiente video en la página
+            val js = """
+                (function() {
+                    var btn = document.querySelector('.ytp-next-button, .next-button, .ytm-next-button, [class*="next-button"], button[aria-label*="Siguiente"], button[aria-label*="Next"]');
+                    if (btn) { btn.click(); return; }
+                    var firstRecom = document.querySelector('ytm-compact-video-renderer a, ytm-video-with-context-renderer a, .compact-media-item-image, a[href*="/watch"]');
+                    if (firstRecom) { firstRecom.click(); }
+                })()
+            """.trimIndent()
+            webView.evaluateJavascript(js, null)
+        } else {
+            webView.evaluateJavascript("window.history.back()", null)
+        }
     }
 
     private fun cropTo16v9(bitmap: Bitmap): Bitmap {
