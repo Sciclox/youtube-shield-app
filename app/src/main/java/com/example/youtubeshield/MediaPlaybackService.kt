@@ -36,6 +36,7 @@ class MediaPlaybackService : Service() {
         const val ACTION_PREV = "com.example.youtubeshield.ACTION_PREV"
         const val ACTION_NEXT = "com.example.youtubeshield.ACTION_NEXT"
         const val ACTION_LOOP = "com.example.youtubeshield.ACTION_LOOP"
+        const val ACTION_OVERLAY_UPDATE = "com.example.youtubeshield.ACTION_OVERLAY_UPDATE"
     }
 
     private val mediaReceiver = object : BroadcastReceiver() {
@@ -209,6 +210,9 @@ class MediaPlaybackService : Service() {
         // Usar color previamente calculado si existe, sino calcular a partir de la miniatura
         val dominantColor = currentDominantColor ?: getDominantColor(displayBitmap)
         showNotification(title, isPlaying, isLooping, displayBitmap, dominantColor)
+
+        // Notificar al overlay flotante si está activo
+        sendBroadcast(Intent(ACTION_OVERLAY_UPDATE).setPackage(packageName))
     }
 
     /**
