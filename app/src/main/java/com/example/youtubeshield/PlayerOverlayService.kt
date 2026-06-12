@@ -85,7 +85,7 @@ class PlayerOverlayService : Service() {
             x = 0
             y = 200
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                blurBehindRadius = 30
+                blurBehindRadius = 65
             }
         }
 
