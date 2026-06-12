@@ -1035,16 +1035,10 @@ class MainActivity : AppCompatActivity() {
             #ad_creative,
             #ad_im,
             #ad_dfp,
-            #ad_container,
             #ad-banner,
-            [class*="ad-container"],
+            [class*="ad-container"]:not([class*="additional"]):not([class*="admin"]),
             [class*="sponsored"],
-            [class*="ad-badge"],
-            [class*="merch-shelf"],
-            [id*="ad-container"],
-            [id*="sponsored"],
-            [class*="ytd-ad"],
-            [class*="ytm-ad"] { 
+            [class*="merch-shelf"] { 
                 display: none !important; 
                 height: 0 !important;
                 width: 0 !important;
@@ -1064,26 +1058,42 @@ class MainActivity : AppCompatActivity() {
                 }
                 // 2. MutationObserver para eliminar anuncios dinámicos que YouTube inyecta después de la carga
                 if (!window.shieldAdObserver) {
+                    var adSelectors = [
+                        'ytd-companion-ad-renderer', 'ytm-companion-ad-renderer',
+                        'ytd-display-ad-renderer', 'ytm-display-ad-renderer',
+                        'ytm-promoted-item', 'ytm-banner-ad-renderer',
+                        'ytm-inline-ad-renderer', 'ytm-carousel-ad-renderer',
+                        'ytm-promoted-sparkles-web-renderer', 'ytd-promoted-sparkles-web-renderer',
+                        'ytm-promoted-video-renderer', 'ytd-promoted-video-renderer',
+                        '.video-ads', '.ytp-ad-module', '.ytp-ad-overlay-container',
+                        '.ytp-ad-image-overlay', '.companion-ad-container',
+                        '.ad-showing', '.ad-interrupting', '.ytp-ad-player-overlay',
+                        '#player-ads', '#masthead-ad'
+                    ];
                     window.shieldAdObserver = new MutationObserver(function(mutations) {
                         mutations.forEach(function(mutation) {
                             if (mutation.addedNodes) {
                                 mutation.addedNodes.forEach(function(node) {
                                     if (node.nodeType === 1) {
-                                        // Verificar si el nuevo nodo o sus hijos contienen anuncios
-                                        var checkEl = node;
-                                        if (checkEl.matches && checkEl.matches('[class*="ad" i], [id*="ad" i], [class*="sponsored" i], [class*="promoted" i]')) {
-                                            checkEl.style.display = 'none';
-                                            checkEl.style.height = '0';
-                                            checkEl.style.width = '0';
-                                            checkEl.style.visibility = 'hidden';
+                                        var match;
+                                        for (var i = 0; i < adSelectors.length; i++) {
+                                            try {
+                                                if (node.matches && node.matches(adSelectors[i])) {
+                                                    node.style.display = 'none';
+                                                    node.style.height = '0';
+                                                    node.style.width = '0';
+                                                    node.style.visibility = 'hidden';
+                                                    break;
+                                                }
+                                                var found = node.querySelectorAll ? node.querySelectorAll(adSelectors[i]) : [];
+                                                for (var j = 0; j < found.length; j++) {
+                                                    found[j].style.display = 'none';
+                                                    found[j].style.height = '0';
+                                                    found[j].style.width = '0';
+                                                    found[j].style.visibility = 'hidden';
+                                                }
+                                            } catch(e) {}
                                         }
-                                        var ads = checkEl.querySelectorAll ? checkEl.querySelectorAll('[class*="ad" i], [id*="ad" i], [class*="sponsored" i], [class*="promoted" i]') : [];
-                                        ads.forEach(function(ad) {
-                                            ad.style.display = 'none';
-                                            ad.style.height = '0';
-                                            ad.style.width = '0';
-                                            ad.style.visibility = 'hidden';
-                                        });
                                     }
                                 });
                             }
@@ -1478,6 +1488,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         webView.evaluateJavascript("window.shieldIgnorePause = false;", null)
+        injectVisibilityOverride()
     }
 
     override fun onPause() {
