@@ -23,9 +23,6 @@ import androidx.core.content.ContextCompat
 import android.graphics.ImageDecoder
 import android.graphics.drawable.AnimatedImageDrawable
 import android.widget.ImageView
-import android.media.AudioAttributes
-import android.media.AudioFocusRequest
-import android.media.AudioManager
 import android.os.PowerManager
 import java.io.ByteArrayInputStream
 
@@ -60,9 +57,6 @@ class MainActivity : AppCompatActivity() {
 
     // Wake lock para mantener CPU activa durante reproducción en segundo plano
     private var wakeLock: PowerManager.WakeLock? = null
-    private var audioManager: AudioManager? = null
-    private var audioFocusRequest: AudioFocusRequest? = null
-    private var isAudioFocused = false
 
     // Variables para el control de pantalla completa
     private var customView: View? = null
@@ -141,8 +135,7 @@ class MainActivity : AppCompatActivity() {
         // Inicializar extractor de colores dinámicos
         colorExtractor = DynamicColorExtractor()
 
-        // Inicializar AudioManager y Wake Lock
-        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        // Inicializar Wake Lock
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "YouTubeShield:PlaybackWakeLock")
 
@@ -354,74 +347,6 @@ class MainActivity : AppCompatActivity() {
         if (wakeLock != null && wakeLock!!.isHeld) {
             wakeLock!!.release()
             android.util.Log.d("Shield", "WakeLock released")
-        }
-    }
-
-    private fun requestAudioFocus() {
-        if (audioManager == null || isAudioFocused) return
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val attribution = AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                    .build()
-                val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                    .setAudioAttributes(attribution)
-                    .setAcceptsDelayedFocusGain(true)
-                    .setOnAudioFocusChangeListener { focusChange ->
-                        when (focusChange) {
-                            AudioManager.AUDIOFOCUS_LOSS -> {
-                                isAudioFocused = false
-                                webView.post {
-                                    webView.evaluateJavascript(
-                                        "(function(){var v=document.querySelector('video');if(v&&!v.paused)v.pause()})()",
-                                        null
-                                    )
-                                }
-                            }
-                            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                                webView.post {
-                                    webView.evaluateJavascript(
-                                        "(function(){var v=document.querySelector('video');if(v&&!v.paused)v.pause();window.shieldAudioDucking=true})()",
-                                        null
-                                    )
-                                }
-                            }
-                            AudioManager.AUDIOFOCUS_GAIN -> {
-                                isAudioFocused = true
-                                webView.post {
-                                    webView.evaluateJavascript(
-                                        "(function(){if(window.shieldAudioDucking){var v=document.querySelector('video');if(v&&v.paused)v.play()}window.shieldAudioDucking=false})()",
-                                        null
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    .build()
-                audioFocusRequest = focusRequest
-                val result = audioManager!!.requestAudioFocus(focusRequest)
-                isAudioFocused = (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
-            } else {
-                val result = audioManager!!.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN)
-                isAudioFocused = (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("Shield", "AudioFocus request error", e)
-        }
-    }
-
-    private fun abandonAudioFocus() {
-        if (audioManager == null || !isAudioFocused) return
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && audioFocusRequest != null) {
-                audioManager!!.abandonAudioFocusRequest(audioFocusRequest!!)
-            } else {
-                audioManager!!.abandonAudioFocus(null)
-            }
-            isAudioFocused = false
-        } catch (e: Exception) {
-            android.util.Log.e("Shield", "AudioFocus abandon error", e)
         }
     }
 
@@ -675,13 +600,11 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
 
-                    // Gestionar Wake Lock y Audio Focus según el estado de reproducción
+                    // Gestionar Wake Lock según el estado de reproducción
                     if (isPlaying) {
                         acquireWakeLock()
-                        requestAudioFocus()
                     } else {
                         releaseWakeLock()
-                        abandonAudioFocus()
                     }
                 } catch (e: Exception) {
                     // Ignorar errores de parsing
