@@ -165,7 +165,7 @@ class PlaylistWidgetProvider : AppWidgetProvider() {
             }
 
             loadNowPlayingThumbnail(context, widgetIds)
-            GlancePlayerWidgetReceiver.updateAll(context)
+            GlassPlayerWidgetProvider.updateWidget(context)
         }
 
         private fun loadNowPlayingThumbnail(context: Context, widgetIds: IntArray) {

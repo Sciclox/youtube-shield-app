@@ -54,9 +54,9 @@
             android:permission="android.permission.BIND_REMOTEVIEWS"
             android:exported="false" />
 
-        <!-- Widget Glance con diseño glassmorphism -->
+        <!-- Widget Glass con diseño cristalino -->
         <receiver
-            android:name=".GlancePlayerWidgetReceiver"
+            android:name=".GlassPlayerWidgetProvider"
             android:exported="true"
             android:label="YouTube Shield Glass">
             <intent-filter>
@@ -64,6 +64,8 @@
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/glance_player_widget_info" />
+                android:resource="@xml/glass_widget_info" />
         </receiver>
     </application></manifest>
+
+
