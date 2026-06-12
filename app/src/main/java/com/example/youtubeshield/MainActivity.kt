@@ -591,7 +591,6 @@ class MainActivity : AppCompatActivity() {
                     if (isWatchOrShort) {
                         playbackService?.updateMetadata(title, isPlaying, isLoopEnabled, currentThumbnail, position, duration)
                     }
-                    }
 
                     // Gestionar Wake Lock según el estado de reproducción
                     if (isPlaying) {
