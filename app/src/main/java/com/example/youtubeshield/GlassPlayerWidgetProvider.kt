@@ -14,7 +14,7 @@ class GlassPlayerWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, manager: AppWidgetManager, appWidgetIds: IntArray) {
         for (id in appWidgetIds) {
-            manager.updateAppWidget(id, buildViews(context))
+            manager.updateAppWidget(id, buildViews(context, id))
         }
         super.onUpdate(context, manager, appWidgetIds)
     }
@@ -46,11 +46,11 @@ class GlassPlayerWidgetProvider : AppWidgetProvider() {
             val component = ComponentName(context, GlassPlayerWidgetProvider::class.java)
             val ids = manager.getAppWidgetIds(component)
             for (id in ids) {
-                manager.updateAppWidget(id, buildViews(context))
+                manager.updateAppWidget(id, buildViews(context, id))
             }
         }
 
-        private fun buildViews(context: Context): RemoteViews {
+        private fun buildViews(context: Context, appWidgetId: Int): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.glass_player_widget)
 
             val currentUrl = PlaylistRepository.currentPlayingUrl
@@ -73,6 +73,7 @@ class GlassPlayerWidgetProvider : AppWidgetProvider() {
                 PendingIntent.FLAG_UPDATE_CURRENT
             }
 
+            // Control buttons
             views.setOnClickPendingIntent(R.id.glassPrev,
                 PendingIntent.getBroadcast(context, 20,
                     Intent(context, GlassPlayerWidgetProvider::class.java).apply { action = ACTION_PREV }, flags))
@@ -83,11 +84,28 @@ class GlassPlayerWidgetProvider : AppWidgetProvider() {
                 PendingIntent.getBroadcast(context, 22,
                     Intent(context, GlassPlayerWidgetProvider::class.java).apply { action = ACTION_NEXT }, flags))
 
+            // Open app
             val openIntent = Intent(context, MainActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
             views.setOnClickPendingIntent(R.id.glassOpenApp,
                 PendingIntent.getActivity(context, 23, openIntent, flags))
+
+            // ListView adapter
+            val serviceIntent = Intent(context, PlaylistWidgetService::class.java).apply {
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                data = Uri.parse(Uri.EMPTY.buildUpon().appendQueryParameter("id", appWidgetId.toString()).build().toString())
+            }
+            views.setRemoteAdapter(R.id.glassListView, serviceIntent)
+            views.setEmptyView(R.id.glassListView, R.id.glassEmptyView)
+
+            // List item click
+            val clickIntent = Intent(context, PlaylistWidgetProvider::class.java).apply {
+                action = PlaylistWidgetProvider.ACTION_WIDGET_PLAY
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            }
+            val clickPending = PendingIntent.getBroadcast(context, 24, clickIntent, flags)
+            views.setPendingIntentTemplate(R.id.glassListView, clickPending)
 
             return views
         }
