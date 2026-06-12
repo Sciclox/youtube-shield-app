@@ -8,7 +8,6 @@ import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.action.actionRunAsync
-import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
@@ -30,6 +29,7 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.dp
+import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 
 class GlancePlayerWidget : GlanceAppWidget() {
@@ -73,7 +73,7 @@ class GlancePlayerWidget : GlanceAppWidget() {
                         text = title,
                         style = TextStyle(
                             fontSize = 16.dp,
-                            fontWeight = FontWeight.SemiBold,
+                            fontWeight = FontWeight.Bold,
                             color = Color(0xFFFFFFFF)
                         ),
                         modifier = GlanceModifier.fillMaxWidth()
@@ -212,9 +212,8 @@ class GlancePlayerWidgetReceiver : GlanceAppWidgetReceiver() {
 
     companion object {
         fun updateAll(context: Context) {
-            kotlinx.coroutines.MainScope().launch {
-                GlanceAppWidgetManager(context)
-                    .updateAll(GlancePlayerWidget())
+            MainScope().launch {
+                GlanceAppWidgetManager(context).updateAll(GlancePlayerWidget())
             }
         }
     }

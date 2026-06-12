@@ -66,6 +66,4 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/glance_player_widget_info" />
         </receiver>
-    </application>
-
-</manifest>
+    </application></manifest>
