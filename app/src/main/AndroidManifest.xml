@@ -7,7 +7,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
         android:allowBackup="true"
@@ -55,11 +54,18 @@
             android:permission="android.permission.BIND_REMOTEVIEWS"
             android:exported="false" />
 
-        <!-- Overlay flotante para control de reproducción -->
-        <service
-            android:name=".PlayerOverlayService"
-            android:enabled="true"
-            android:exported="false" />
+        <!-- Widget Glance con diseño glassmorphism -->
+        <receiver
+            android:name=".GlancePlayerWidgetReceiver"
+            android:exported="true"
+            android:label="YouTube Shield Glass">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/glance_player_widget_info" />
+        </receiver>
     </application>
 
 </manifest>

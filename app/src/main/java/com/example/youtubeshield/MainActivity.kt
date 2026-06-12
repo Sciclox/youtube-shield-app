@@ -24,7 +24,6 @@ import android.graphics.ImageDecoder
 import android.graphics.drawable.AnimatedImageDrawable
 import android.widget.ImageView
 import android.os.PowerManager
-import android.provider.Settings
 import java.io.ByteArrayInputStream
 
 class MainActivity : AppCompatActivity() {
@@ -335,38 +334,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private var overlayPermissionRequested = false
-
-    private fun ensureOverlayRunning() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            if (!overlayPermissionRequested) {
-                overlayPermissionRequested = true
-                requestOverlayPermission()
-            }
-            return
-        }
-        overlayPermissionRequested = false
-        val overlayIntent = Intent(this, PlayerOverlayService::class.java)
-        try {
-            startService(overlayIntent)
-        } catch (_: Exception) {}
-    }
-
-    private fun requestOverlayPermission() {
-        val intent = Intent(
-            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-            Uri.parse("package:$packageName")
-        )
-        startActivity(intent)
-    }
-
-    private fun stopOverlay() {
-        val overlayIntent = Intent(this, PlayerOverlayService::class.java)
-        try {
-            stopService(overlayIntent)
-        } catch (_: Exception) {}
-    }
-
     private fun queryVideoState() {
         val currentUrl = webView.url ?: ""
         currentActiveUrl = currentUrl
@@ -610,10 +577,9 @@ class MainActivity : AppCompatActivity() {
                         playbackService?.updateMetadata(title, isPlaying, isLoopEnabled, currentThumbnail, position, duration)
                     }
 
-                    // Gestionar Wake Lock y overlay según el estado de reproducción
+                    // Gestionar Wake Lock según el estado de reproducción
                     if (isPlaying) {
                         acquireWakeLock()
-                        ensureOverlayRunning()
                     } else {
                         releaseWakeLock()
                     }
@@ -1472,13 +1438,6 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         webView.evaluateJavascript("window.shieldIgnorePause = false;", null)
         injectVisibilityOverride()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
-            if (overlayPermissionRequested) {
-                overlayPermissionRequested = false
-                val overlayIntent = Intent(this, PlayerOverlayService::class.java)
-                try { startService(overlayIntent) } catch (_: Exception) {}
-            }
-        }
     }
 
     override fun onPause() {
@@ -1514,7 +1473,6 @@ class MainActivity : AppCompatActivity() {
             unbindService(serviceConnection)
             isBound = false
         }
-        stopOverlay()
     }
 
     private fun updateMediaPlaybackGestureSetting(url: String) {
