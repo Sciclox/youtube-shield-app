@@ -23,6 +23,10 @@ import androidx.core.content.ContextCompat
 import android.graphics.ImageDecoder
 import android.graphics.drawable.AnimatedImageDrawable
 import android.widget.ImageView
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.os.PowerManager
 import java.io.ByteArrayInputStream
 
 class MainActivity : AppCompatActivity() {
@@ -54,6 +58,12 @@ class MainActivity : AppCompatActivity() {
         android.util.Log.d("Shield", "Escudo reactivado automáticamente después del pulso")
     }
 
+    // Wake lock para mantener CPU activa durante reproducción en segundo plano
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var audioManager: AudioManager? = null
+    private var audioFocusRequest: AudioFocusRequest? = null
+    private var isAudioFocused = false
+
     // Variables para el control de pantalla completa
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
@@ -67,6 +77,7 @@ class MainActivity : AppCompatActivity() {
     private var lastVideoId: String? = null
     private var currentThumbnail: Bitmap? = null
     private var loadedThumbnailVideoId: String? = null
+    private var lastMetadataVideoId: String = ""
 
     // Extractor de colores dinámicos
     private lateinit var colorExtractor: DynamicColorExtractor
@@ -129,6 +140,11 @@ class MainActivity : AppCompatActivity() {
 
         // Inicializar extractor de colores dinámicos
         colorExtractor = DynamicColorExtractor()
+
+        // Inicializar AudioManager y Wake Lock
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "YouTubeShield:PlaybackWakeLock")
 
         // Cargar preferencia del escudo
         val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
@@ -325,6 +341,88 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         })
+    }
+
+    private fun acquireWakeLock() {
+        if (wakeLock != null && !wakeLock!!.isHeld) {
+            wakeLock!!.acquire(10 * 60 * 1000L) // 10 min max para evitar agotar batería
+            android.util.Log.d("Shield", "WakeLock acquired")
+        }
+    }
+
+    private fun releaseWakeLock() {
+        if (wakeLock != null && wakeLock!!.isHeld) {
+            wakeLock!!.release()
+            android.util.Log.d("Shield", "WakeLock released")
+        }
+    }
+
+    private fun requestAudioFocus() {
+        if (audioManager == null || isAudioFocused) return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val attribution = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build()
+                val focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                    .setAudioAttributes(attribution)
+                    .setAcceptsDelayedFocusGain(true)
+                    .setOnAudioFocusChangeListener { focusChange ->
+                        when (focusChange) {
+                            AudioManager.AUDIOFOCUS_LOSS -> {
+                                isAudioFocused = false
+                                webView.post {
+                                    webView.evaluateJavascript(
+                                        "(function(){var v=document.querySelector('video');if(v&&!v.paused)v.pause()})()",
+                                        null
+                                    )
+                                }
+                            }
+                            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                                webView.post {
+                                    webView.evaluateJavascript(
+                                        "(function(){var v=document.querySelector('video');if(v&&!v.paused)v.pause();window.shieldAudioDucking=true})()",
+                                        null
+                                    )
+                                }
+                            }
+                            AudioManager.AUDIOFOCUS_GAIN -> {
+                                isAudioFocused = true
+                                webView.post {
+                                    webView.evaluateJavascript(
+                                        "(function(){if(window.shieldAudioDucking){var v=document.querySelector('video');if(v&&v.paused)v.play()}window.shieldAudioDucking=false})()",
+                                        null
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    .build()
+                audioFocusRequest = focusRequest
+                val result = audioManager!!.requestAudioFocus(focusRequest)
+                isAudioFocused = (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+            } else {
+                val result = audioManager!!.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN)
+                isAudioFocused = (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("Shield", "AudioFocus request error", e)
+        }
+    }
+
+    private fun abandonAudioFocus() {
+        if (audioManager == null || !isAudioFocused) return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && audioFocusRequest != null) {
+                audioManager!!.abandonAudioFocusRequest(audioFocusRequest!!)
+            } else {
+                audioManager!!.abandonAudioFocus(null)
+            }
+            isAudioFocused = false
+        } catch (e: Exception) {
+            android.util.Log.e("Shield", "AudioFocus abandon error", e)
+        }
     }
 
     private fun queryVideoState() {
@@ -567,7 +665,23 @@ class MainActivity : AppCompatActivity() {
                     }
                     
                     if (isWatchOrShort) {
-                        playbackService?.updateMetadata(title, isPlaying, isLoopEnabled, currentThumbnail, position, duration)
+                        val notifyVideoId = currentVideoId?.take(11) // usar videoId como identificador
+                        val isNewVideo = notifyVideoId != null && notifyVideoId != lastMetadataVideoId
+                        if (isNewVideo || isPlaying != PlaylistRepository.isPlaying) {
+                            lastMetadataVideoId = notifyVideoId ?: ""
+                            playbackService?.updateMetadata(title, isPlaying, isLoopEnabled, currentThumbnail, position, duration)
+                        } else {
+                            playbackService?.updatePlaybackPosition(position, duration, isPlaying)
+                        }
+                    }
+
+                    // Gestionar Wake Lock y Audio Focus según el estado de reproducción
+                    if (isPlaying) {
+                        acquireWakeLock()
+                        requestAudioFocus()
+                    } else {
+                        releaseWakeLock()
+                        abandonAudioFocus()
                     }
                 } catch (e: Exception) {
                     // Ignorar errores de parsing
@@ -578,60 +692,41 @@ class MainActivity : AppCompatActivity() {
 
     private fun fetchThumbnail(videoId: String) {
         Thread {
-            try {
-                val url = java.net.URL("https://img.youtube.com/vi/$videoId/hqdefault.jpg")
-                val connection = url.openConnection()
-                connection.connectTimeout = 3000
-                connection.readTimeout = 3000
-                val input = connection.getInputStream()
-                var bitmap = android.graphics.BitmapFactory.decodeStream(input)
-                if (bitmap != null) {
-                    bitmap = cropTo16v9(bitmap)
-                }
-                runOnUiThread {
-                    if (loadedThumbnailVideoId == videoId) {
-                        currentThumbnail = bitmap
-
-                        // Extraer color dominante y enviarlo al servicio si está enlazado
-                        try {
-                            if (bitmap != null && isBound && playbackService != null) {
-                                val dominantColor = colorExtractor.extractDominantColor(bitmap)
-                                playbackService?.setNotificationColor(dominantColor)
-                            }
-                        } catch (e: Exception) {
-                            // No bloquear si falla la extracción
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                // Fallback a mqdefault si falla el de alta calidad
+            val urls = listOf(
+                "https://img.youtube.com/vi/$videoId/hqdefault.jpg",
+                "https://img.youtube.com/vi/$videoId/mqdefault.jpg",
+                "https://img.youtube.com/vi/$videoId/default.jpg"
+            )
+            var bitmap: android.graphics.Bitmap? = null
+            for (urlStr in urls) {
+                if (bitmap != null) break
                 try {
-                    val url = java.net.URL("https://img.youtube.com/vi/$videoId/mqdefault.jpg")
+                    val url = java.net.URL(urlStr)
                     val connection = url.openConnection()
                     connection.connectTimeout = 3000
                     connection.readTimeout = 3000
                     val input = connection.getInputStream()
-                    var bitmap = android.graphics.BitmapFactory.decodeStream(input)
-                    if (bitmap != null) {
-                        bitmap = cropTo16v9(bitmap)
+                    val decoded = android.graphics.BitmapFactory.decodeStream(input)
+                    input.close()
+                    if (decoded != null) {
+                        bitmap = cropTo16v9(decoded)
                     }
-                    runOnUiThread {
-                        if (loadedThumbnailVideoId == videoId) {
-                            currentThumbnail = bitmap
-
-                            // Extraer color dominante y enviarlo al servicio si está enlazado
-                            try {
-                                if (bitmap != null && isBound && playbackService != null) {
-                                    val dominantColor = colorExtractor.extractDominantColor(bitmap)
-                                    playbackService?.setNotificationColor(dominantColor)
-                                }
-                            } catch (e2: Exception) {
-                                // Ignorar
-                            }
+                } catch (e: Exception) {
+                    // Intentar siguiente URL
+                }
+            }
+            val finalBitmap = bitmap
+            runOnUiThread {
+                if (loadedThumbnailVideoId == videoId) {
+                    currentThumbnail = finalBitmap
+                    try {
+                        if (finalBitmap != null && isBound && playbackService != null) {
+                            val dominantColor = colorExtractor.extractDominantColor(finalBitmap)
+                            playbackService?.setNotificationColor(dominantColor)
                         }
+                    } catch (e: Exception) {
+                        // No bloquear si falla la extracción
                     }
-                } catch (e2: Exception) {
-                    // Ignorar
                 }
             }
         }.start()
@@ -783,6 +878,11 @@ class MainActivity : AppCompatActivity() {
                 currentActiveUrl = cleanUrl
                 updateMediaPlaybackGestureSetting(cleanUrl)
                 injectVisibilityOverride()
+                // Reset dynamic shield when navigation starts; re-enabled on finish
+                val isWatchOrShort = cleanUrl.contains("watch?v=") || cleanUrl.contains("/shorts/")
+                if (!isWatchOrShort) {
+                    isDynamicShieldActive = false
+                }
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
@@ -793,7 +893,9 @@ class MainActivity : AppCompatActivity() {
                 updateMediaPlaybackGestureSetting(cleanUrl)
                 injectVisibilityOverride()
                 val isWatchOrShort = cleanUrl.contains("watch?v=") || cleanUrl.contains("/shorts/")
-                if (isShieldActive && isWatchOrShort && isDynamicShieldActive) {
+                // Activar bloqueo de red inmediatamente para páginas de video
+                if (isShieldActive && isWatchOrShort) {
+                    isDynamicShieldActive = true
                     injectAdBlockScript()
                 }
             }
@@ -886,20 +988,63 @@ class MainActivity : AppCompatActivity() {
             ytm-carousel-ad-renderer, 
             ytm-statement-banner-ad-renderer, 
             ytm-interactive-tabbed-header-ad-renderer, 
+            ytm-promoted-sparkles-web-renderer, 
+            ytd-promoted-sparkles-web-renderer, 
+            ytm-promoted-video-renderer, 
+            ytd-promoted-video-renderer, 
+            ytm-merchandise-item-renderer, 
+            ytd-merchandise-shelf-renderer, 
+            ytm-merchandise-shelf-renderer, 
+            ytm-video-ad-card-renderer, 
+            ytd-video-ad-card-renderer, 
+            ytm-compact-promoted-video-renderer, 
+            ytd-compact-promoted-video-renderer, 
+            ytm-promoted-search-renderer, 
+            ytd-search-pyv-renderer, 
+            ytm-promoted-sparkles-text-search-renderer, 
+            ytd-promoted-sparkles-text-search-renderer, 
+            ytm-mealbar-promo-renderer, 
+            ytd-mealbar-promo-renderer, 
+            ytm-setting-ads-enabled-renderer, 
             .ad-container, 
             .ad-div, 
             .video-ads, 
             .ytp-ad-module, 
             .ytp-ad-overlay-container, 
             .ytp-ad-image-overlay, 
+            .ytp-ad-text-overlay, 
             .companion-ad-container, 
-            ytd-promoted-sparkles-web-renderer, 
-            ytm-promoted-sparkles-web-renderer, 
             .ad-showing,
             .ad-interrupting,
             .ytp-ad-player-overlay,
             .ytp-ad-player-overlay-layout,
-            #player-ads { 
+            .ytp-ad-progress,
+            .ytp-ad-skip-button-container,
+            .ytp-ad-preview-container,
+            .ytp-ad-visit-advertiser-button,
+            .ytp-ad-action-interrupt-slot,
+            .ytp-ad-survey,
+            .ytp-ad-simple-ad-badge,
+            .ytp-ad-subtitles,
+            .ytp-ad-user-indicator,
+            .ytp-ad-block-list-item,
+            .ytp-ad-message-overlay,
+            .ytp-ad-badge,
+            #player-ads,
+            #masthead-ad,
+            #ad_creative,
+            #ad_im,
+            #ad_dfp,
+            #ad_container,
+            #ad-banner,
+            [class*="ad-container"],
+            [class*="sponsored"],
+            [class*="ad-badge"],
+            [class*="merch-shelf"],
+            [id*="ad-container"],
+            [id*="sponsored"],
+            [class*="ytd-ad"],
+            [class*="ytm-ad"] { 
                 display: none !important; 
                 height: 0 !important;
                 width: 0 !important;
@@ -916,6 +1061,35 @@ class MainActivity : AppCompatActivity() {
                     style.type = 'text/css';
                     style.innerHTML = '$cssRules';
                     document.head.appendChild(style);
+                }
+                // 2. MutationObserver para eliminar anuncios dinámicos que YouTube inyecta después de la carga
+                if (!window.shieldAdObserver) {
+                    window.shieldAdObserver = new MutationObserver(function(mutations) {
+                        mutations.forEach(function(mutation) {
+                            if (mutation.addedNodes) {
+                                mutation.addedNodes.forEach(function(node) {
+                                    if (node.nodeType === 1) {
+                                        // Verificar si el nuevo nodo o sus hijos contienen anuncios
+                                        var checkEl = node;
+                                        if (checkEl.matches && checkEl.matches('[class*="ad" i], [id*="ad" i], [class*="sponsored" i], [class*="promoted" i]')) {
+                                            checkEl.style.display = 'none';
+                                            checkEl.style.height = '0';
+                                            checkEl.style.width = '0';
+                                            checkEl.style.visibility = 'hidden';
+                                        }
+                                        var ads = checkEl.querySelectorAll ? checkEl.querySelectorAll('[class*="ad" i], [id*="ad" i], [class*="sponsored" i], [class*="promoted" i]') : [];
+                                        ads.forEach(function(ad) {
+                                            ad.style.display = 'none';
+                                            ad.style.height = '0';
+                                            ad.style.width = '0';
+                                            ad.style.visibility = 'hidden';
+                                        });
+                                    }
+                                });
+                            }
+                        });
+                    });
+                    window.shieldAdObserver.observe(document.body, { childList: true, subtree: true });
                 }
             })();
         """.trimIndent()

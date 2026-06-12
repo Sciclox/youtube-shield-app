@@ -96,6 +96,24 @@ class MediaPlaybackService : Service() {
         this.callback = callback
     }
 
+    fun updatePlaybackPosition(position: Long, duration: Long, isPlaying: Boolean) {
+        val state = PlaybackState.Builder()
+            .setActions(
+                PlaybackState.ACTION_PLAY or
+                PlaybackState.ACTION_PAUSE or
+                PlaybackState.ACTION_SKIP_TO_NEXT or
+                PlaybackState.ACTION_SKIP_TO_PREVIOUS or
+                PlaybackState.ACTION_SEEK_TO
+            )
+            .setState(
+                if (isPlaying) PlaybackState.STATE_PLAYING else PlaybackState.STATE_PAUSED,
+                position,
+                1.0f
+            )
+            .build()
+        mediaSession?.setPlaybackState(state)
+    }
+
     @Suppress("DEPRECATION")
     private fun setupMediaSession() {
         mediaSession = MediaSession(this, "YouTubeShieldSession")
