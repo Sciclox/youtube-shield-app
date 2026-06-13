@@ -1690,6 +1690,24 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
+                // 3b. Interceptar interacciones del usuario para permitir pausado manual temporal
+                if (!window.shieldInteractionListenerRegistered) {
+                    window.shieldIgnorePause = true; // Por defecto bloquear pausas automáticas
+                    var shieldPauseTimeout;
+                    var allowPause = function() {
+                        window.shieldIgnorePause = false;
+                        clearTimeout(shieldPauseTimeout);
+                        shieldPauseTimeout = setTimeout(function() {
+                            window.shieldIgnorePause = true;
+                        }, 250);
+                    };
+                    document.addEventListener('click', allowPause, true);
+                    document.addEventListener('touchend', allowPause, true);
+                    document.addEventListener('keydown', allowPause, true);
+                    window.shieldInteractionListenerRegistered = true;
+                    console.log('Shield: Interaction listeners for pause control registered.');
+                }
+
                 // 4. Overrides para repetición de canción (loop)
                 if (!window.shieldLoopOverridden) {
                     try {
@@ -1772,12 +1790,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Retrasar el restablecimiento de shieldIgnorePause a false para evitar que los eventos
-        // de foco/visibilidad diferidos por el sistema pausen el video al volver al primer plano.
-        adBlockHandler.postDelayed({
-            webView.evaluateJavascript("window.shieldIgnorePause = false;", null)
-            android.util.Log.d("Shield", "shieldIgnorePause set to false after delay")
-        }, 1200)
         injectVisibilityOverride()
         webView.evaluateJavascript("""
             (function() {
