@@ -37,6 +37,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var navBarCard: CardView
     private lateinit var fullscreenContainer: FrameLayout
     private lateinit var splashOverlay: FrameLayout
+    private lateinit var transitionOverlay: FrameLayout
     private lateinit var btnShield: ImageButton
 
     private var isShieldActive = true
@@ -44,8 +45,16 @@ class MainActivity : AppCompatActivity() {
     private var isLoopEnabled = false
     private val adBlockHandler = Handler(Looper.getMainLooper())
 
-    // Variable de control para tracking del último video procesado
+    // Variables de control para el pulso automático del escudo
+    private var isPulseActive = false
     private var lastPulseVideoId: String? = null
+    private val shieldPulseHandler = Handler(Looper.getMainLooper())
+    private val shieldPulseRunnable = Runnable {
+        isShieldActive = true
+        isPulseActive = false
+        updateShieldUI()
+        android.util.Log.d("Shield", "Escudo reactivado automáticamente después del pulso")
+    }
 
     // Wake lock para mantener CPU activa durante reproducción en segundo plano
     private var wakeLock: PowerManager.WakeLock? = null
@@ -139,6 +148,7 @@ class MainActivity : AppCompatActivity() {
         navBarCard = findViewById(R.id.navBarCard)
         fullscreenContainer = findViewById(R.id.fullscreenContainer)
         splashOverlay = findViewById(R.id.splashOverlay)
+        transitionOverlay = findViewById(R.id.transitionOverlay)
         btnShield = findViewById(R.id.btnShield)
 
         setupNavigationButtons()
@@ -555,7 +565,7 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     if (urlChanged && newVideoId != null) {
-                        triggerShieldPulse(newVideoId)
+                        triggerShieldPulse(newVideoId, shouldReload = true)
                     }
 
                     if (isPlaying && isShieldActive && !isDynamicShieldActive) {
@@ -749,17 +759,44 @@ class MainActivity : AppCompatActivity() {
         val globalShieldActive = prefs.getBoolean("shield_active", true)
         if (!globalShieldActive) return
 
-        android.util.Log.d("Shield", "Pulso del escudo para videoId: $videoId (sin reload)")
+        android.util.Log.d("Shield", "Iniciando pulso del escudo para videoId: $videoId (con reload)")
 
-        // Mantener escudo activo y re-inyectar scripts + limpieza in-place
-        isShieldActive = true
-        isDynamicShieldActive = true
+        shieldPulseHandler.removeCallbacks(shieldPulseRunnable)
+
+        isShieldActive = false
+        isPulseActive = true
         updateShieldUI()
 
         runOnUiThread {
-            injectAdBlockScript()
-            injectVisibilityOverride()
-            forceAdCleanup()
+            // Mostrar transitionOverlay de inmediato para ocultar el destello de la recarga
+            transitionOverlay.alpha = 1f
+            transitionOverlay.visibility = View.VISIBLE
+            webView.reload()
+        }
+
+        shieldPulseHandler.postDelayed(shieldPulseRunnable, 150)
+    }
+
+    private fun hideOverlaysWithFade() {
+        runOnUiThread {
+            if (splashOverlay.visibility == View.VISIBLE) {
+                splashOverlay.animate()
+                    .alpha(0f)
+                    .setDuration(350)
+                    .withEndAction {
+                        splashOverlay.visibility = View.GONE
+                        splashOverlay.alpha = 1f
+                    }
+            }
+            if (transitionOverlay.visibility == View.VISIBLE) {
+                transitionOverlay.animate()
+                    .alpha(0f)
+                    .setDuration(350)
+                    .withEndAction {
+                        transitionOverlay.visibility = View.GONE
+                        transitionOverlay.alpha = 1f
+                    }
+            }
         }
     }
 
@@ -890,7 +927,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                splashOverlay.visibility = View.GONE
+                hideOverlaysWithFade()
                 val cleanUrl = url ?: ""
                 currentActiveUrl = cleanUrl
                 updateMediaPlaybackGestureSetting(cleanUrl)
@@ -904,18 +941,18 @@ class MainActivity : AppCompatActivity() {
                 // Inyectar listener de navegación SPA de YouTube
                 injectSpaNavigationListener()
             }
-
+ 
             override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                 super.doUpdateVisitedHistory(view, url, isReload)
                 val cleanUrl = url ?: ""
                 currentActiveUrl = cleanUrl
-                // Detectar navegación SPA a video y activar bloqueo inmediato
+                
+                // Si el escudo está activo y detectamos navegación a un video o short que es nuevo,
+                // disparamos el pulso del escudo (el cual mostrará el transitionOverlay y recargará el WebView).
                 val isWatchOrShort = cleanUrl.contains("watch?v=") || cleanUrl.contains("/shorts/")
-                if (isShieldActive && isWatchOrShort) {
-                    isDynamicShieldActive = true
-                    injectAdBlockScript()
-                    injectVisibilityOverride()
-                    forceAdCleanup()
+                val newVideoId = getVideoId(cleanUrl)
+                if (isShieldActive && isWatchOrShort && newVideoId != null && newVideoId != lastPulseVideoId) {
+                    triggerShieldPulse(newVideoId, shouldReload = true)
                 }
             }
         }
@@ -1764,7 +1801,7 @@ class MainActivity : AppCompatActivity() {
         PlaylistWidgetProvider.refreshPlaylist(this)
 
         val videoId = getVideoId(fullUrl)
-        triggerShieldPulse(videoId)
+        triggerShieldPulse(videoId, shouldReload = false)
 
         webView.post {
             webView.loadUrl(fullUrl)

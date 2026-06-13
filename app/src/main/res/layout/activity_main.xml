@@ -57,6 +57,32 @@
         </LinearLayout>
     </FrameLayout>
 
+    <!-- Transition Overlay for reload (initially GONE) -->
+    <FrameLayout
+        android:id="@+id/transitionOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#121212"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <ProgressBar
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:indeterminateTint="@color/shield_on" />
+        </LinearLayout>
+    </FrameLayout>
+
     <!-- Floating Navigation Bar (Oculta por defecto) -->
     <androidx.cardview.widget.CardView
         android:id="@+id/navBarCard"
