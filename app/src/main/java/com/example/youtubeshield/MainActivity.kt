@@ -1414,7 +1414,7 @@ class MainActivity : AppCompatActivity() {
 
 
 
-                // 6. Desmutear automáticamente lo antes posible (solo en watch/shorts)
+                // 6. Chequeo periódico antimute (cada 1s) — combate mute forzado por YouTube anti-adblock
                 const isWatchOrShort = window.location.href.includes('watch?v=') || window.location.href.includes('/shorts/');
                 if (isWatchOrShort) {
                     var video = document.querySelector('video');
@@ -1422,6 +1422,21 @@ class MainActivity : AppCompatActivity() {
                         video.muted = false;
                         video.volume = 1.0;
                         console.log('Shield: Early video auto-unmuted.');
+                    }
+                    if (!window.shieldUnmuteInterval) {
+                        window.shieldUnmuteInterval = setInterval(function() {
+                            var v = document.querySelector('video');
+                            if (v) {
+                                if (v.muted) {
+                                    v.muted = false;
+                                    console.log('Shield: Periodic unmute');
+                                }
+                                if (v.volume === 0) {
+                                    v.volume = 1.0;
+                                    console.log('Shield: Periodic volume restore');
+                                }
+                            }
+                        }, 1000);
                     }
                 }
             })();
@@ -1438,6 +1453,16 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         webView.evaluateJavascript("window.shieldIgnorePause = false;", null)
         injectVisibilityOverride()
+        webView.evaluateJavascript("""
+            (function() {
+                var v = document.querySelector('video');
+                if (v) {
+                    v.muted = false;
+                    v.volume = 1.0;
+                    console.log('Shield: onResume forced unmute');
+                }
+            })();
+        """.trimIndent(), null)
     }
 
     override fun onPause() {
