@@ -1080,7 +1080,7 @@ class MainActivity : AppCompatActivity() {
                         'ytm-promoted-video-renderer', 'ytd-promoted-video-renderer',
                         '.video-ads', '.ytp-ad-module', '.ytp-ad-overlay-container',
                         '.ytp-ad-image-overlay', '.companion-ad-container',
-                        '.ad-showing', '.ad-interrupting', '.ytp-ad-player-overlay',
+                        '.ytp-ad-player-overlay',
                         '#player-ads', '#masthead-ad'
                     ];
                     window.shieldAdObserver = new MutationObserver(function(mutations) {
@@ -1114,12 +1114,102 @@ class MainActivity : AppCompatActivity() {
                     });
                     window.shieldAdObserver.observe(document.body, { childList: true, subtree: true });
                 }
+
+                // 3. Función para saltar un ad de video activo
+                window.shieldSkipAd = function() {
+                    var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                    if (!player) return;
+
+                    // Intentar skip via API del player
+                    try {
+                        if (typeof player.skipAd === 'function') player.skipAd();
+                    } catch(e) {}
+                    try {
+                        if (typeof player.cancelPlaybackAd === 'function') player.cancelPlaybackAd();
+                    } catch(e) {}
+                    try {
+                        if (typeof player.finishAd === 'function') player.finishAd();
+                    } catch(e) {}
+                    try {
+                        if (typeof player.setOption === 'function') player.setOption('ad', 'advancement', {advancement: 'skip'});
+                    } catch(e) {}
+
+                    // Click en botón de skip si existe
+                    var skipBtns = document.querySelectorAll('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button, .ytp-ad-skip-button-slot, button[class*="skip"]');
+                    skipBtns.forEach(function(btn) { try { btn.click(); } catch(e) {} });
+
+                    // Forzar salto del ad adelantando el video al final
+                    var video = document.querySelector('video');
+                    if (video && video.duration && isFinite(video.duration)) {
+                        video.currentTime = video.duration;
+                    }
+
+                    // Remover clases de ad del player
+                    player.classList.remove('ad-showing', 'ad-interrupting');
+
+                    // Limpiar overlays de ad
+                    var adOverlays = player.querySelectorAll('.ytp-ad-player-overlay, .ytp-ad-player-overlay-layout, .ytp-ad-overlay-container, .video-ads, .ytp-ad-module');
+                    adOverlays.forEach(function(el) {
+                        el.style.display = 'none';
+                        el.style.height = '0';
+                        el.style.visibility = 'hidden';
+                    });
+
+                    console.log('Shield: Ad saltado via shieldSkipAd');
+                };
+
+                // 4. MutationObserver en el player para detectar ad-showing por cambio de clase
+                if (!window.shieldPlayerObserver) {
+                    var setupPlayerObserver = function() {
+                        var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                        if (!player) {
+                            // Reintentar si el player aún no existe
+                            setTimeout(setupPlayerObserver, 500);
+                            return;
+                        }
+
+                        window.shieldPlayerObserver = new MutationObserver(function(mutations) {
+                            mutations.forEach(function(mutation) {
+                                if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                                    var target = mutation.target;
+                                    if (target.classList.contains('ad-showing') || target.classList.contains('ad-interrupting')) {
+                                        console.log('Shield: ad-showing detectado en player, saltando...');
+                                        window.shieldSkipAd();
+                                        // Reintentar skip después de un momento por si el primer intento falla
+                                        setTimeout(window.shieldSkipAd, 300);
+                                        setTimeout(window.shieldSkipAd, 800);
+                                    }
+                                }
+                            });
+                        });
+                        window.shieldPlayerObserver.observe(player, { attributes: true, attributeFilter: ['class'] });
+                        console.log('Shield: Player observer instalado');
+
+                        // Verificar estado actual por si ya hay un ad
+                        if (player.classList.contains('ad-showing') || player.classList.contains('ad-interrupting')) {
+                            window.shieldSkipAd();
+                        }
+                    };
+                    setupPlayerObserver();
+                }
+
+                // 5. Fallback: verificación periódica cada 500ms por si el observer no captura el ad
+                if (!window.shieldAdCheckInterval) {
+                    window.shieldAdCheckInterval = setInterval(function() {
+                        var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                        if (player && (player.classList.contains('ad-showing') || player.classList.contains('ad-interrupting'))) {
+                            console.log('Shield: ad detectado via polling, saltando...');
+                            window.shieldSkipAd();
+                        }
+                    }, 500);
+                }
             })();
         """.trimIndent()
 
         webView.evaluateJavascript(jsScript, null)
         injectVisibilityOverride()
     }
+
 
     /**
      * Inyecta un listener para los eventos de navegación SPA de YouTube.
