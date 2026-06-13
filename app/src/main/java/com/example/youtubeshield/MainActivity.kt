@@ -751,7 +751,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun triggerShieldPulse(videoId: String?) {
+    private fun triggerShieldPulse(videoId: String?, shouldReload: Boolean) {
         if (videoId == null || videoId == lastPulseVideoId) return
         lastPulseVideoId = videoId
 
@@ -759,7 +759,7 @@ class MainActivity : AppCompatActivity() {
         val globalShieldActive = prefs.getBoolean("shield_active", true)
         if (!globalShieldActive) return
 
-        android.util.Log.d("Shield", "Iniciando pulso del escudo para videoId: $videoId (con reload)")
+        android.util.Log.d("Shield", "Iniciando pulso del escudo para videoId: $videoId (shouldReload: $shouldReload)")
 
         shieldPulseHandler.removeCallbacks(shieldPulseRunnable)
 
@@ -771,7 +771,9 @@ class MainActivity : AppCompatActivity() {
             // Mostrar transitionOverlay de inmediato para ocultar el destello de la recarga
             transitionOverlay.alpha = 1f
             transitionOverlay.visibility = View.VISIBLE
-            webView.reload()
+            if (shouldReload) {
+                webView.reload()
+            }
         }
 
         shieldPulseHandler.postDelayed(shieldPulseRunnable, 150)
