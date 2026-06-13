@@ -38,6 +38,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var fullscreenContainer: FrameLayout
     private lateinit var splashOverlay: FrameLayout
     private lateinit var transitionOverlay: FrameLayout
+    private lateinit var transitionProgressBar: ProgressBar
     private lateinit var btnShield: ImageButton
 
     private var isShieldActive = true
@@ -149,6 +150,7 @@ class MainActivity : AppCompatActivity() {
         fullscreenContainer = findViewById(R.id.fullscreenContainer)
         splashOverlay = findViewById(R.id.splashOverlay)
         transitionOverlay = findViewById(R.id.transitionOverlay)
+        transitionProgressBar = findViewById(R.id.transitionProgressBar)
         btnShield = findViewById(R.id.btnShield)
 
         setupNavigationButtons()
@@ -390,14 +392,18 @@ class MainActivity : AppCompatActivity() {
                     fetchThumbnail(currentVideoId)
                 }
             } else {
-                loadedThumbnailVideoId = null
-                currentThumbnail = null
+                if (loadedThumbnailVideoId != null) {
+                    loadedThumbnailVideoId = null
+                    currentThumbnail = null
+                    resetDynamicColorsToDefault()
+                }
             }
         } else {
             if (lastVideoId != null || loadedThumbnailVideoId != null) {
                 lastVideoId = null
                 loadedThumbnailVideoId = null
                 currentThumbnail = null
+                resetDynamicColorsToDefault()
                 playbackService?.updateMetadata("YouTube Shield", false, isLoopEnabled, null, 0L, 0L)
             }
         }
@@ -618,18 +624,24 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             val finalBitmap = bitmap
-                runOnUiThread {
-                    if (loadedThumbnailVideoId == videoId) {
-                        currentThumbnail = finalBitmap
-                        try {
-                            if (finalBitmap != null && isBound && playbackService != null) {
+            runOnUiThread {
+                if (loadedThumbnailVideoId == videoId) {
+                    currentThumbnail = finalBitmap
+                    try {
+                        if (finalBitmap != null) {
+                            val palette = colorExtractor.extractColorPalette(finalBitmap)
+                            applyDynamicColors(palette)
+                            if (isBound && playbackService != null) {
                                 playbackService?.updateThumbnail(finalBitmap)
                             }
-                        } catch (e: Exception) {
-                            // No bloquear si falla la extracción
+                        } else {
+                            resetDynamicColorsToDefault()
                         }
+                    } catch (e: Exception) {
+                        // No bloquear si falla la extracción
                     }
                 }
+            }
         }.start()
     }
 
@@ -798,6 +810,50 @@ class MainActivity : AppCompatActivity() {
                         transitionOverlay.visibility = View.GONE
                         transitionOverlay.alpha = 1f
                     }
+            }
+        }
+    }
+
+    private fun applyDynamicColors(palette: DynamicColorExtractor.ColorPalette) {
+        runOnUiThread {
+            // 1. Aplicar degradado dinámico al background de transitionOverlay
+            val startColor = palette.darkVibrant
+            val endColor = palette.darkMuted
+            
+            val gradientDrawable = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                intArrayOf(startColor, endColor)
+            )
+            transitionOverlay.background = gradientDrawable
+
+            // 2. Aplicar color dinámico al ProgressBar (spinner)
+            val vibrantColor = palette.vibrant
+            transitionProgressBar.indeterminateTintList = android.content.res.ColorStateList.valueOf(vibrantColor)
+
+            // 3. Aplicar color dinámico a la barra de estado (Status Bar)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                window.statusBarColor = startColor
+            }
+        }
+    }
+
+    private fun resetDynamicColorsToDefault() {
+        runOnUiThread {
+            // Fondo oscuro por defecto
+            val defaultColor = android.graphics.Color.parseColor("#121212")
+            val gradientDrawable = android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+                intArrayOf(defaultColor, defaultColor)
+            )
+            transitionOverlay.background = gradientDrawable
+
+            // Color del spinner por defecto (verde del escudo)
+            val defaultSpinnerColor = androidx.core.content.ContextCompat.getColor(this, R.color.shield_on)
+            transitionProgressBar.indeterminateTintList = android.content.res.ColorStateList.valueOf(defaultSpinnerColor)
+
+            // Color de la barra de estado por defecto
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                window.statusBarColor = defaultColor
             }
         }
     }
