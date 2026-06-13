@@ -1766,7 +1766,12 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        webView.evaluateJavascript("window.shieldIgnorePause = false;", null)
+        // Retrasar el restablecimiento de shieldIgnorePause a false para evitar que los eventos
+        // de foco/visibilidad diferidos por el sistema pausen el video al volver al primer plano.
+        adBlockHandler.postDelayed({
+            webView.evaluateJavascript("window.shieldIgnorePause = false;", null)
+            android.util.Log.d("Shield", "shieldIgnorePause set to false after delay")
+        }, 1200)
         injectVisibilityOverride()
         webView.evaluateJavascript("""
             (function() {
