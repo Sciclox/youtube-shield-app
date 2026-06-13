@@ -48,6 +48,7 @@ class MainActivity : AppCompatActivity() {
     private var isShieldActive = true
     private var isDynamicShieldActive = false
     private var isLoopEnabled = false
+    private var isNavigatingNextOnEnd = false
     private val adBlockHandler = Handler(Looper.getMainLooper())
 
     // Variables de control para el pulso automático del escudo
@@ -248,9 +249,8 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPause() {
                 runOnUiThread {
-                    // Desactivar temporalmente la protección de pausa para procesar el clic manual del widget
                     webView.evaluateJavascript(
-                        "(function() { window.shieldIgnorePause = false; var v = document.querySelector('video'); if(v) v.pause(); window.shieldIgnorePause = true; })()",
+                        "(function() { if (typeof window.shieldRegisterIntentionalPause === 'function') window.shieldRegisterIntentionalPause(); var v = document.querySelector('video'); if(v) v.pause(); })()",
                         null
                     )
                 }
@@ -491,7 +491,7 @@ class MainActivity : AppCompatActivity() {
 
                 var slicedPlaylist = playlist.slice(0, 20);
 
-                if (!video) return { title: "YouTube Shield", isPlaying: false, position: 0, duration: 0, playlist: slicedPlaylist };
+                if (!video) return { title: "YouTube Shield", isPlaying: false, ended: false, position: 0, duration: 0, playlist: slicedPlaylist };
                 
                 var title = document.title;
                 title = title.replace(/^\(\d+\)\s+/, '');
@@ -501,10 +501,12 @@ class MainActivity : AppCompatActivity() {
                 
                 var posMs = Math.floor(video.currentTime * 1000);
                 var durMs = isNaN(video.duration) ? 0 : Math.floor(video.duration * 1000);
+                var isVideoEnded = video.ended || (posMs > 0 && durMs > 0 && posMs >= durMs - 1500);
                 
                 return {
                     title: title || "YouTube Video",
-                    isPlaying: !video.paused && !video.ended,
+                    isPlaying: !video.paused && !isVideoEnded,
+                    ended: isVideoEnded,
                     position: posMs,
                     duration: durMs,
                     playlist: slicedPlaylist
@@ -518,8 +520,15 @@ class MainActivity : AppCompatActivity() {
                     val json = org.json.JSONObject(result)
                     val title = json.optString("title", "YouTube Shield")
                     val isPlaying = json.optBoolean("isPlaying", false)
+                    val ended = json.optBoolean("ended", false)
                     val position = json.optLong("position", 0L)
                     val duration = json.optLong("duration", 0L)
+                    
+                    if (ended && !isLoopEnabled && !isNavigatingNextOnEnd) {
+                        isNavigatingNextOnEnd = true
+                        android.util.Log.d("Shield", "Video finalizado. Navegando al siguiente de la lista.")
+                        navigatePlaylist(next = true)
+                    }
                     
                     // Parsear la playlist recibida
                     val playlistArray = json.optJSONArray("playlist")
@@ -990,6 +999,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
+                isNavigatingNextOnEnd = false
                 hideOverlaysWithFade()
                 val cleanUrl = url ?: ""
                 currentActiveUrl = cleanUrl
@@ -1007,6 +1017,7 @@ class MainActivity : AppCompatActivity() {
  
             override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                 super.doUpdateVisitedHistory(view, url, isReload)
+                isNavigatingNextOnEnd = false
                 val cleanUrl = url ?: ""
                 currentActiveUrl = cleanUrl
                 
@@ -1673,39 +1684,57 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
-                // 3. Evitar que YouTube pause el video por el sistema
-                if (!window.shieldPauseOverridden) {
+                // 3. Sistema dinámico de prevención de pausas automáticas (JavaScript + Chromium Native)
+                if (!window.shieldPausePreventionInstalled) {
+                    window.shieldAllowPauseTimestamp = 0;
+                    
+                    window.shieldRegisterIntentionalPause = function() {
+                        window.shieldAllowPauseTimestamp = Date.now();
+                        console.log('Shield: Registro de pausa intencional a las ' + window.shieldAllowPauseTimestamp);
+                    };
+                    
+                    // Escuchar interacciones en fase de captura para permitir pausado manual del usuario
+                    var registerPauseOnInteraction = function() {
+                        window.shieldRegisterIntentionalPause();
+                    };
+                    document.addEventListener('click', registerPauseOnInteraction, true);
+                    document.addEventListener('touchend', registerPauseOnInteraction, true);
+                    document.addEventListener('keydown', registerPauseOnInteraction, true);
+                    
+                    // Interceptar llamadas JS directas a video.pause()
                     try {
                         const originalPause = HTMLVideoElement.prototype.pause;
                         HTMLVideoElement.prototype.pause = function() {
-                            if (window.shieldIgnorePause) {
-                                console.log('Shield: Pause call ignored in background.');
+                            var elapsed = Date.now() - (window.shieldAllowPauseTimestamp || 0);
+                            if (elapsed > 400) {
+                                console.log('Shield: Llamada a prototype.pause() ignorada (pausa automática no deseada).');
                                 return;
                             }
                             return originalPause.apply(this, arguments);
                         };
-                        window.shieldPauseOverridden = true;
                     } catch (e) {
-                        console.error('Shield: Failed to override pause', e);
+                        console.error('Shield: Failed to override prototype.pause', e);
                     }
-                }
-
-                // 3b. Interceptar interacciones del usuario para permitir pausado manual temporal
-                if (!window.shieldInteractionListenerRegistered) {
-                    window.shieldIgnorePause = true; // Por defecto bloquear pausas automáticas
-                    var shieldPauseTimeout;
-                    var allowPause = function() {
-                        window.shieldIgnorePause = false;
-                        clearTimeout(shieldPauseTimeout);
-                        shieldPauseTimeout = setTimeout(function() {
-                            window.shieldIgnorePause = true;
-                        }, 250);
-                    };
-                    document.addEventListener('click', allowPause, true);
-                    document.addEventListener('touchend', allowPause, true);
-                    document.addEventListener('keydown', allowPause, true);
-                    window.shieldInteractionListenerRegistered = true;
-                    console.log('Shield: Interaction listeners for pause control registered.');
+                    
+                    // Escuchar el evento 'pause' en el documento para revertir pausas nativas del motor Chromium/sistema
+                    document.addEventListener('pause', function(e) {
+                        if (e.target && e.target.tagName === 'VIDEO') {
+                            var elapsed = Date.now() - (window.shieldAllowPauseTimestamp || 0);
+                            if (elapsed > 400) {
+                                console.log('Shield: Detectada pausa nativa del motor/sistema (' + elapsed + 'ms), reanudando...');
+                                e.stopImmediatePropagation();
+                                e.preventDefault();
+                                e.target.play().catch(function(err) {
+                                    console.error('Shield auto-resume failed', err);
+                                });
+                            } else {
+                                console.log('Shield: Pausa nativa permitida (dentro del rango de interacción: ' + elapsed + 'ms)');
+                            }
+                        }
+                    }, true);
+                    
+                    window.shieldPausePreventionInstalled = true;
+                    console.log('Shield: Pause prevention system installed.');
                 }
 
                 // 4. Overrides para repetición de canción (loop)
@@ -1805,7 +1834,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        webView.evaluateJavascript("window.shieldIgnorePause = true;", null)
     }
 
     override fun onStop() {
@@ -1870,6 +1898,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun changeVideo(url: String) {
+        isNavigatingNextOnEnd = false
         val fullUrl = when {
             url.startsWith("http://") || url.startsWith("https://") -> url
             url.startsWith("/") -> "https://m.youtube.com$url"
