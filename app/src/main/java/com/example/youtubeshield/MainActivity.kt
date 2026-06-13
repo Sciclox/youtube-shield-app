@@ -42,6 +42,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var transitionOverlay: FrameLayout
     private lateinit var transitionProgressBar: ProgressBar
     private lateinit var transitionVideoView: VideoView
+    private lateinit var splashVideoView: VideoView
     private lateinit var btnShield: ImageButton
 
     private var isShieldActive = true
@@ -153,8 +154,9 @@ class MainActivity : AppCompatActivity() {
         fullscreenContainer = findViewById(R.id.fullscreenContainer)
         splashOverlay = findViewById(R.id.splashOverlay)
         transitionOverlay = findViewById(R.id.transitionOverlay)
-        transitionProgressBar = findViewById<ProgressBar>(R.id.transitionProgressBar)
+        transitionProgressBar = findViewById(R.id.transitionProgressBar)
         transitionVideoView = findViewById(R.id.transitionVideoView)
+        splashVideoView = findViewById(R.id.splashVideoView)
         btnShield = findViewById(R.id.btnShield)
 
         // Configurar video de transición desde res/raw/transicion.mp4
@@ -170,6 +172,24 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             // Evitar bloqueos si falla la carga
+        }
+
+        // Configurar video del splash desde res/raw/splash.mp4
+        try {
+            val splashLogo = findViewById<ImageView>(R.id.splashLogo)
+            val videoUri = Uri.parse("android.resource://" + packageName + "/" + R.raw.splash)
+            splashVideoView.setVideoURI(videoUri)
+            splashVideoView.setOnPreparedListener { mediaPlayer ->
+                mediaPlayer.isLooping = true
+                mediaPlayer.setVolume(0f, 0f)
+                splashVideoView.start()
+            }
+            splashVideoView.setOnErrorListener { _, _, _ ->
+                splashLogo?.visibility = View.VISIBLE
+                true
+            }
+        } catch (e: Exception) {
+            findViewById<ImageView>(R.id.splashLogo)?.visibility = View.VISIBLE
         }
 
         setupNavigationButtons()
@@ -190,7 +210,6 @@ class MainActivity : AppCompatActivity() {
 
         // Iniciar los runnables periódicos
         adBlockHandler.post(playbackMonitorRunnable)
-        setupSplashGif()
 
         // Procesar intent de inicio si viene desde el widget
         handleIntent(intent)
@@ -214,57 +233,6 @@ class MainActivity : AppCompatActivity() {
                     arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
                     NOTIFICATION_PERMISSION_CODE
                 )
-            }
-        }
-    }
-
-    private fun setupSplashGif() {
-        val splashLogo = findViewById<ImageView>(R.id.splashLogo) ?: return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            try {
-                val source = ImageDecoder.createSource(assets, "ytsplash.gif")
-                val drawable = ImageDecoder.decodeDrawable(source)
-                splashLogo.setImageDrawable(drawable)
-                if (drawable is AnimatedImageDrawable) {
-                    drawable.start()
-                }
-            } catch (e: Exception) {
-                splashLogo.setImageResource(R.drawable.ic_youtube_logo)
-            }
-        } else {
-            try {
-                val layout = splashLogo.parent as? android.view.ViewGroup
-                if (layout != null) {
-                    val index = layout.indexOfChild(splashLogo)
-                    val lp = splashLogo.layoutParams
-                    
-                    val webViewGif = WebView(this).apply {
-                        layoutParams = lp
-                        setBackgroundColor(0x00000000)
-                        settings.allowFileAccess = true
-                    }
-                    
-                    layout.removeView(splashLogo)
-                    layout.addView(webViewGif, index)
-                    
-                    val html = """
-                        <html>
-                        <head>
-                        <style>
-                            body { margin: 0; padding: 0; background: #FFFFFF; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
-                            img { width: 100%; height: 100%; object-fit: contain; }
-                        </style>
-                        </head>
-                        <body>
-                            <img src="ytsplash.gif" />
-                        </body>
-                        </html>
-                    """.trimIndent()
-                    
-                    webViewGif.loadDataWithBaseURL("file:///android_asset/", html, "text/html", "utf-8", null)
-                }
-            } catch (e: Exception) {
-                splashLogo.setImageResource(R.drawable.ic_youtube_logo)
             }
         }
     }
@@ -825,6 +793,11 @@ class MainActivity : AppCompatActivity() {
                     .withEndAction {
                         splashOverlay.visibility = View.GONE
                         splashOverlay.alpha = 1f
+                        try {
+                            splashVideoView.pause()
+                        } catch (e: Exception) {
+                            // Evitar crashes
+                        }
                     }
             }
             if (transitionOverlay.visibility == View.VISIBLE) {
