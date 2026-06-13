@@ -23,6 +23,7 @@ import androidx.core.content.ContextCompat
 import android.graphics.ImageDecoder
 import android.graphics.drawable.AnimatedImageDrawable
 import android.widget.ImageView
+import android.widget.ProgressBar
 import android.os.PowerManager
 import java.io.ByteArrayInputStream
 
@@ -150,7 +151,7 @@ class MainActivity : AppCompatActivity() {
         fullscreenContainer = findViewById(R.id.fullscreenContainer)
         splashOverlay = findViewById(R.id.splashOverlay)
         transitionOverlay = findViewById(R.id.transitionOverlay)
-        transitionProgressBar = findViewById(R.id.transitionProgressBar)
+        transitionProgressBar = findViewById<ProgressBar>(R.id.transitionProgressBar)
         btnShield = findViewById(R.id.btnShield)
 
         setupNavigationButtons()
