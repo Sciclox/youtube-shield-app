@@ -69,6 +69,12 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
+        <VideoView
+            android:id="@+id/transitionVideoView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_gravity="center" />
+
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -80,6 +86,7 @@
                 android:id="@+id/transitionProgressBar"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
+                android:visibility="gone"
                 android:indeterminateTint="@color/shield_on" />
         </LinearLayout>
     </FrameLayout>

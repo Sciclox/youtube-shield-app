@@ -24,6 +24,7 @@ import android.graphics.ImageDecoder
 import android.graphics.drawable.AnimatedImageDrawable
 import android.widget.ImageView
 import android.widget.ProgressBar
+import android.widget.VideoView
 import android.os.PowerManager
 import java.io.ByteArrayInputStream
 
@@ -40,6 +41,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var splashOverlay: FrameLayout
     private lateinit var transitionOverlay: FrameLayout
     private lateinit var transitionProgressBar: ProgressBar
+    private lateinit var transitionVideoView: VideoView
     private lateinit var btnShield: ImageButton
 
     private var isShieldActive = true
@@ -152,7 +154,23 @@ class MainActivity : AppCompatActivity() {
         splashOverlay = findViewById(R.id.splashOverlay)
         transitionOverlay = findViewById(R.id.transitionOverlay)
         transitionProgressBar = findViewById<ProgressBar>(R.id.transitionProgressBar)
+        transitionVideoView = findViewById(R.id.transitionVideoView)
         btnShield = findViewById(R.id.btnShield)
+
+        // Configurar video de transición desde res/raw/transicion.mp4
+        try {
+            val videoUri = Uri.parse("android.resource://" + packageName + "/" + R.raw.transicion)
+            transitionVideoView.setVideoURI(videoUri)
+            transitionVideoView.setOnPreparedListener { mediaPlayer ->
+                mediaPlayer.isLooping = true
+                mediaPlayer.setVolume(0f, 0f)
+            }
+            transitionVideoView.setOnErrorListener { _, _, _ ->
+                true // Prevenir el diálogo nativo de error si falla la reproducción
+            }
+        } catch (e: Exception) {
+            // Evitar bloqueos si falla la carga
+        }
 
         setupNavigationButtons()
         setupWebView()
@@ -784,6 +802,12 @@ class MainActivity : AppCompatActivity() {
             // Mostrar transitionOverlay de inmediato para ocultar el destello de la recarga
             transitionOverlay.alpha = 1f
             transitionOverlay.visibility = View.VISIBLE
+            try {
+                transitionVideoView.seekTo(0)
+                transitionVideoView.start()
+            } catch (e: Exception) {
+                // Evitar crashes
+            }
             if (shouldReload) {
                 webView.reload()
             }
@@ -810,6 +834,11 @@ class MainActivity : AppCompatActivity() {
                     .withEndAction {
                         transitionOverlay.visibility = View.GONE
                         transitionOverlay.alpha = 1f
+                        try {
+                            transitionVideoView.pause()
+                        } catch (e: Exception) {
+                            // Evitar crashes
+                        }
                     }
             }
         }
