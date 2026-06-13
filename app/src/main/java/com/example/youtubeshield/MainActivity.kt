@@ -1169,7 +1169,8 @@ class MainActivity : AppCompatActivity() {
                     style.innerHTML = '$cssRules';
                     document.head.appendChild(style);
                 }
-                // 2. MutationObserver para eliminar anuncios dinámicos que YouTube inyecta después de la carga
+                // 2. MutationObserver desactivado para optimizar el rendimiento y evitar tirones de CPU
+                /*
                 if (!window.shieldAdObserver) {
                     var adSelectors = [
                         'ytd-companion-ad-renderer', 'ytm-companion-ad-renderer',
@@ -1214,8 +1215,9 @@ class MainActivity : AppCompatActivity() {
                     });
                     window.shieldAdObserver.observe(document.body, { childList: true, subtree: true });
                 }
+                */
 
-                // 3. Función para saltar un ad de video activo
+                // 3. Función para saltar un ad de video activo (se mantiene por si acaso, pero no se autoejecuta)
                 window.shieldSkipAd = function() {
                     var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
                     if (!player) return;
@@ -1258,7 +1260,8 @@ class MainActivity : AppCompatActivity() {
                     console.log('Shield: Ad saltado via shieldSkipAd');
                 };
 
-                // 4. MutationObserver en el player para detectar ad-showing por cambio de clase
+                // 4. MutationObserver en el player desactivado para optimizar CPU
+                /*
                 if (!window.shieldPlayerObserver) {
                     var setupPlayerObserver = function() {
                         var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
@@ -1292,8 +1295,10 @@ class MainActivity : AppCompatActivity() {
                     };
                     setupPlayerObserver();
                 }
+                */
 
-                // 5. Fallback: verificación periódica cada 500ms por si el observer no captura el ad
+                // 5. Fallback: verificación periódica cada 500ms desactivada para conservar CPU
+                /*
                 if (!window.shieldAdCheckInterval) {
                     window.shieldAdCheckInterval = setInterval(function() {
                         var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
@@ -1303,6 +1308,7 @@ class MainActivity : AppCompatActivity() {
                         }
                     }, 500);
                 }
+                */
             })();
         """.trimIndent()
 
