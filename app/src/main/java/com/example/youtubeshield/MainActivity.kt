@@ -44,16 +44,8 @@ class MainActivity : AppCompatActivity() {
     private var isLoopEnabled = false
     private val adBlockHandler = Handler(Looper.getMainLooper())
 
-    // Variables de control para el pulso automático del escudo
-    private var isPulseActive = false
+    // Variable de control para tracking del último video procesado
     private var lastPulseVideoId: String? = null
-    private val shieldPulseHandler = Handler(Looper.getMainLooper())
-    private val shieldPulseRunnable = Runnable {
-        isShieldActive = true
-        isPulseActive = false
-        updateShieldUI()
-        android.util.Log.d("Shield", "Escudo reactivado automáticamente después del pulso")
-    }
 
     // Wake lock para mantener CPU activa durante reproducción en segundo plano
     private var wakeLock: PowerManager.WakeLock? = null
@@ -563,7 +555,7 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     if (urlChanged && newVideoId != null) {
-                        triggerShieldPulse(newVideoId, shouldReload = true)
+                        triggerShieldPulse(newVideoId)
                     }
 
                     if (isPlaying && isShieldActive && !isDynamicShieldActive) {
@@ -727,10 +719,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnShield.setOnClickListener {
-            // Cancelar el pulso automático si está en ejecución
-            shieldPulseHandler.removeCallbacks(shieldPulseRunnable)
-            isPulseActive = false
-
             isShieldActive = !isShieldActive
             
             // Guardar preferencia
@@ -753,7 +741,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun triggerShieldPulse(videoId: String?, shouldReload: Boolean) {
+    private fun triggerShieldPulse(videoId: String?) {
         if (videoId == null || videoId == lastPulseVideoId) return
         lastPulseVideoId = videoId
 
@@ -761,21 +749,87 @@ class MainActivity : AppCompatActivity() {
         val globalShieldActive = prefs.getBoolean("shield_active", true)
         if (!globalShieldActive) return
 
-        android.util.Log.d("Shield", "Iniciando pulso del escudo para videoId: $videoId (shouldReload: $shouldReload)")
+        android.util.Log.d("Shield", "Pulso del escudo para videoId: $videoId (sin reload)")
 
-        shieldPulseHandler.removeCallbacks(shieldPulseRunnable)
-
-        isShieldActive = false
-        isPulseActive = true
+        // Mantener escudo activo y re-inyectar scripts + limpieza in-place
+        isShieldActive = true
+        isDynamicShieldActive = true
         updateShieldUI()
 
-        if (shouldReload) {
-            webView.post {
-                webView.reload()
-            }
+        runOnUiThread {
+            injectAdBlockScript()
+            injectVisibilityOverride()
+            forceAdCleanup()
         }
+    }
 
-        shieldPulseHandler.postDelayed(shieldPulseRunnable, 100)
+    /**
+     * Limpia agresivamente los anuncios del DOM actual sin necesidad de recargar.
+     * Elimina overlays de ads activos, salta ads de video y purga elementos de ad del DOM.
+     */
+    private fun forceAdCleanup() {
+        val js = """
+            (function() {
+                // 1. Si hay un ad de video reproduciéndose, forzar skip
+                var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                if (player) {
+                    // Detectar si está mostrando un ad
+                    if (player.classList.contains('ad-showing') || player.classList.contains('ad-interrupting')) {
+                        try {
+                            // Intentar skip via API del player de YouTube
+                            if (typeof player.skipAd === 'function') player.skipAd();
+                            if (typeof player.cancelPlaybackAd === 'function') player.cancelPlaybackAd();
+                        } catch(e) {}
+                        // Click en botón de skip si existe
+                        var skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button, button[class*="skip"]');
+                        if (skipBtn) skipBtn.click();
+                        // Forzar salto del ad via el elemento video
+                        var video = document.querySelector('video');
+                        if (video && video.duration && video.duration < 300) {
+                            video.currentTime = video.duration;
+                        }
+                    }
+                }
+
+                // 2. Purgar todos los elementos de ad del DOM
+                var adSelectors = [
+                    'ytd-companion-ad-renderer', 'ytm-companion-ad-renderer',
+                    'ytd-display-ad-renderer', 'ytm-display-ad-renderer',
+                    'ytm-promoted-item', 'ytm-banner-ad-renderer',
+                    'ytm-inline-ad-renderer', 'ytm-carousel-ad-renderer',
+                    'ytm-promoted-sparkles-web-renderer', 'ytd-promoted-sparkles-web-renderer',
+                    'ytm-promoted-video-renderer', 'ytd-promoted-video-renderer',
+                    '.video-ads', '.ytp-ad-module', '.ytp-ad-overlay-container',
+                    '.ytp-ad-image-overlay', '.companion-ad-container',
+                    '.ad-showing', '.ad-interrupting', '.ytp-ad-player-overlay',
+                    '.ytp-ad-player-overlay-layout', '.ytp-ad-progress',
+                    '.ytp-ad-skip-button-container', '.ytp-ad-preview-container',
+                    '#player-ads', '#masthead-ad',
+                    'ytm-statement-banner-ad-renderer', 'ytm-interactive-tabbed-header-ad-renderer',
+                    'ytm-video-ad-card-renderer', 'ytd-video-ad-card-renderer',
+                    '[class*="ad-container"]:not([class*="additional"]):not([class*="admin"])',
+                    '[class*="sponsored"]'
+                ];
+                adSelectors.forEach(function(sel) {
+                    try {
+                        document.querySelectorAll(sel).forEach(function(el) {
+                            el.style.display = 'none';
+                            el.style.height = '0';
+                            el.style.width = '0';
+                            el.style.visibility = 'hidden';
+                        });
+                    } catch(e) {}
+                });
+
+                // 3. Remover clases de ad del player
+                if (player) {
+                    player.classList.remove('ad-showing', 'ad-interrupting');
+                }
+
+                console.log('Shield: forceAdCleanup ejecutado');
+            })();
+        """.trimIndent()
+        webView.evaluateJavascript(js, null)
     }
 
     private fun setupWebView() {
@@ -847,12 +901,22 @@ class MainActivity : AppCompatActivity() {
                     isDynamicShieldActive = true
                     injectAdBlockScript()
                 }
+                // Inyectar listener de navegación SPA de YouTube
+                injectSpaNavigationListener()
             }
 
             override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                 super.doUpdateVisitedHistory(view, url, isReload)
                 val cleanUrl = url ?: ""
                 currentActiveUrl = cleanUrl
+                // Detectar navegación SPA a video y activar bloqueo inmediato
+                val isWatchOrShort = cleanUrl.contains("watch?v=") || cleanUrl.contains("/shorts/")
+                if (isShieldActive && isWatchOrShort) {
+                    isDynamicShieldActive = true
+                    injectAdBlockScript()
+                    injectVisibilityOverride()
+                    forceAdCleanup()
+                }
             }
         }
 
@@ -1055,6 +1119,67 @@ class MainActivity : AppCompatActivity() {
 
         webView.evaluateJavascript(jsScript, null)
         injectVisibilityOverride()
+    }
+
+    /**
+     * Inyecta un listener para los eventos de navegación SPA de YouTube.
+     * Cuando YouTube navega a un nuevo video sin recargar la página,
+     * estos eventos disparan la limpieza de ads automáticamente.
+     */
+    private fun injectSpaNavigationListener() {
+        val js = """
+            (function() {
+                if (window.shieldSpaListenerActive) return;
+                window.shieldSpaListenerActive = true;
+                var lastUrl = location.href;
+
+                // Listener para eventos nativos de navegación SPA de YouTube
+                var spaEvents = ['yt-navigate-finish', 'yt-page-data-updated', 'yt-navigate-start'];
+                spaEvents.forEach(function(eventName) {
+                    document.addEventListener(eventName, function() {
+                        var newUrl = location.href;
+                        if (newUrl !== lastUrl) {
+                            lastUrl = newUrl;
+                            if (newUrl.indexOf('watch?v=') !== -1 || newUrl.indexOf('/shorts/') !== -1) {
+                                console.log('Shield: SPA navigation detectada via ' + eventName + ': ' + newUrl);
+                                // Re-aplicar estilos de bloqueo CSS
+                                var styleEl = document.getElementById('shield-adblock-styles');
+                                if (styleEl) {
+                                    document.head.removeChild(styleEl);
+                                }
+                                // Forzar re-creación del observer
+                                if (window.shieldAdObserver) {
+                                    window.shieldAdObserver.disconnect();
+                                    window.shieldAdObserver = null;
+                                }
+                            }
+                        }
+                    });
+                });
+
+                // Fallback: MutationObserver en <title> para detectar cambios de video
+                var titleObserver = new MutationObserver(function() {
+                    var newUrl = location.href;
+                    if (newUrl !== lastUrl) {
+                        lastUrl = newUrl;
+                        if (newUrl.indexOf('watch?v=') !== -1 || newUrl.indexOf('/shorts/') !== -1) {
+                            console.log('Shield: SPA navigation detectada via title change: ' + newUrl);
+                            if (window.shieldAdObserver) {
+                                window.shieldAdObserver.disconnect();
+                                window.shieldAdObserver = null;
+                            }
+                        }
+                    }
+                });
+                var titleEl = document.querySelector('title');
+                if (titleEl) {
+                    titleObserver.observe(titleEl, { childList: true, characterData: true, subtree: true });
+                }
+
+                console.log('Shield: SPA navigation listener instalado');
+            })();
+        """.trimIndent()
+        webView.evaluateJavascript(js, null)
     }
 
     private fun injectVisibilityOverride() {
@@ -1549,7 +1674,7 @@ class MainActivity : AppCompatActivity() {
         PlaylistWidgetProvider.refreshPlaylist(this)
 
         val videoId = getVideoId(fullUrl)
-        triggerShieldPulse(videoId, shouldReload = false)
+        triggerShieldPulse(videoId)
 
         webView.post {
             webView.loadUrl(fullUrl)
