@@ -53,6 +53,7 @@ class MainActivity : AppCompatActivity() {
     // Variables de control para el pulso automático del escudo
     private var isPulseActive = false
     private var lastPulseVideoId: String? = null
+    private var lastTransitionPosition = 0
     private val shieldPulseHandler = Handler(Looper.getMainLooper())
     private val shieldPulseRunnable = Runnable {
         isShieldActive = true
@@ -771,7 +772,7 @@ class MainActivity : AppCompatActivity() {
             transitionOverlay.alpha = 1f
             transitionOverlay.visibility = View.VISIBLE
             try {
-                transitionVideoView.seekTo(0)
+                transitionVideoView.seekTo(lastTransitionPosition)
                 transitionVideoView.start()
             } catch (e: Exception) {
                 // Evitar crashes
@@ -808,6 +809,7 @@ class MainActivity : AppCompatActivity() {
                         transitionOverlay.visibility = View.GONE
                         transitionOverlay.alpha = 1f
                         try {
+                            lastTransitionPosition = transitionVideoView.currentPosition
                             transitionVideoView.pause()
                         } catch (e: Exception) {
                             // Evitar crashes
