@@ -1699,6 +1699,10 @@ class MainActivity : AppCompatActivity() {
                     };
                     document.addEventListener('click', registerPauseOnInteraction, true);
                     document.addEventListener('touchend', registerPauseOnInteraction, true);
+                    document.addEventListener('touchstart', registerPauseOnInteraction, true);
+                    document.addEventListener('touchmove', registerPauseOnInteraction, true);
+                    document.addEventListener('mousedown', registerPauseOnInteraction, true);
+                    document.addEventListener('mousemove', registerPauseOnInteraction, true);
                     document.addEventListener('keydown', registerPauseOnInteraction, true);
                     
                     // Interceptar llamadas JS directas a video.pause()
@@ -1706,7 +1710,11 @@ class MainActivity : AppCompatActivity() {
                         const originalPause = HTMLVideoElement.prototype.pause;
                         HTMLVideoElement.prototype.pause = function() {
                             var elapsed = Date.now() - (window.shieldAllowPauseTimestamp || 0);
-                            if (elapsed > 400) {
+                            if (elapsed > 2000) {
+                                // Permitir la pausa si está en estado de seek, finalizado o cargando (readyState HAVE_NOTHING)
+                                if (this.seeking || this.ended || this.readyState === 0 || !this.src) {
+                                    return originalPause.apply(this, arguments);
+                                }
                                 console.log('Shield: Llamada a prototype.pause() ignorada (pausa automática no deseada).');
                                 return;
                             }
@@ -1720,7 +1728,12 @@ class MainActivity : AppCompatActivity() {
                     document.addEventListener('pause', function(e) {
                         if (e.target && e.target.tagName === 'VIDEO') {
                             var elapsed = Date.now() - (window.shieldAllowPauseTimestamp || 0);
-                            if (elapsed > 400) {
+                            if (elapsed > 2000) {
+                                // Permitir la pausa si está en estado de seek, finalizado o cargando (readyState HAVE_NOTHING)
+                                if (e.target.seeking || e.target.ended || e.target.readyState === 0 || !e.target.src) {
+                                    console.log('Shield: Pausa nativa permitida (estado especial: seeking/ended/loading)');
+                                    return;
+                                }
                                 console.log('Shield: Detectada pausa nativa del motor/sistema (' + elapsed + 'ms), reanudando...');
                                 e.stopImmediatePropagation();
                                 e.preventDefault();
