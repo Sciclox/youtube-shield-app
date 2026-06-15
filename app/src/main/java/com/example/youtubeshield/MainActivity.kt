@@ -100,7 +100,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Runnable para inyección periódica de scripts de bloqueo
+    // Runnable para inyección periódica de scripts de bloqueo (reducido a 8 segundos para evitar sobrecarga)
     private val adBlockRunnable = object : Runnable {
         override fun run() {
             if (isShieldActive && isDynamicShieldActive) {
@@ -110,14 +110,24 @@ class MainActivity : AppCompatActivity() {
                     injectAdBlockScript()
                 }
             }
-            adBlockHandler.postDelayed(this, 2000) // Re-inyecta cada 2 segundos
+            adBlockHandler.postDelayed(this, 8000) // Re-inyecta cada 8 segundos
         }
     }
+
+    private var playlistQueryCounter = 0
 
     // Runnable para monitorear el estado del video de YouTube y actualizar la notificación
     private val playbackMonitorRunnable = object : Runnable {
         override fun run() {
             queryVideoState()
+            
+            // Cada 15 segundos ejecutamos una consulta pesada de la playlist/recomendaciones como respaldo
+            playlistQueryCounter++
+            if (playlistQueryCounter >= 15) {
+                playlistQueryCounter = 0
+                queryPlaylistAndRecommendations()
+            }
+            
             adBlockHandler.postDelayed(this, 1000) // Verifica cada 1 segundo
         }
     }
@@ -136,8 +146,10 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Inicializar base de datos de AdBlocker
-        AdBlocker.init(this)
+        // Inicializar base de datos de AdBlocker en segundo plano para no bloquear el hilo de UI
+        Thread {
+            AdBlocker.init(this)
+        }.start()
 
         // Inicializar extractor de colores dinámicos
         colorExtractor = DynamicColorExtractor()
@@ -399,10 +411,98 @@ class MainActivity : AppCompatActivity() {
         val js = """
             (function() {
                 var video = document.querySelector('video');
+                if (!video) return { title: document.title || "YouTube Shield", isPlaying: false, ended: false, position: 0, duration: 0 };
+                
+                var title = document.title;
+                title = title.replace(/^\(\d+\)\s+/, '');
+                if (title.endsWith(' - YouTube')) {
+                    title = title.substring(0, title.length - 10);
+                }
+                
+                var posMs = Math.floor(video.currentTime * 1000);
+                var durMs = isNaN(video.duration) ? 0 : Math.floor(video.duration * 1000);
+                var isVideoEnded = video.ended || (posMs > 0 && durMs > 0 && posMs >= durMs - 1500);
+                
+                return {
+                    title: title || "YouTube Video",
+                    isPlaying: !video.paused && !isVideoEnded,
+                    ended: isVideoEnded,
+                    position: posMs,
+                    duration: durMs
+                };
+            })()
+        """.trimIndent()
+
+        webView.evaluateJavascript(js) { result ->
+            if (result != null && result != "null" && result != "\"null\"") {
+                try {
+                    val json = org.json.JSONObject(result)
+                    val title = json.optString("title", "YouTube Shield")
+                    val isPlaying = json.optBoolean("isPlaying", false)
+                    val ended = json.optBoolean("ended", false)
+                    val position = json.optLong("position", 0L)
+                    val duration = json.optLong("duration", 0L)
+                    
+                    if (ended && !isLoopEnabled && !isNavigatingNextOnEnd) {
+                        isNavigatingNextOnEnd = true
+                        android.util.Log.d("Shield", "Video finalizado. Navegando al siguiente de la lista.")
+                        navigatePlaylist(next = true)
+                    }
+                    
+                    val oldVideoId = getVideoId(PlaylistRepository.currentPlayingUrl)
+                    val newVideoId = getVideoId(currentUrl)
+                    val urlChanged = oldVideoId != newVideoId
+                    
+                    if (urlChanged || PlaylistRepository.isPlaying != isPlaying) {
+                        PlaylistRepository.currentPlayingUrl = currentUrl
+                        PlaylistRepository.isPlaying = isPlaying
+                        PlaylistWidgetProvider.refreshPlaylist(this@MainActivity)
+                        
+                        // Si cambió la canción o video, disparamos una consulta de la playlist
+                        if (urlChanged) {
+                            queryPlaylistAndRecommendations()
+                        }
+                    }
+
+                    if (urlChanged && newVideoId != null) {
+                        triggerShieldPulse(newVideoId, shouldReload = true)
+                    }
+
+                    if (isPlaying && isShieldActive && !isDynamicShieldActive) {
+                        isDynamicShieldActive = true
+                        runOnUiThread {
+                            injectAdBlockScript()
+                        }
+                    }
+                    
+                    if (isWatchOrShort) {
+                        playbackService?.updateMetadata(title, isPlaying, isLoopEnabled, currentThumbnail, position, duration)
+                    }
+
+                    // Gestionar Wake Lock según el estado de reproducción
+                    if (isPlaying) {
+                        acquireWakeLock()
+                    } else {
+                        releaseWakeLock()
+                    }
+                } catch (e: Exception) {
+                    // Ignorar errores de parsing
+                }
+            }
+        }
+    }
+
+    private fun queryPlaylistAndRecommendations() {
+        val currentUrl = webView.url ?: ""
+        val isWatchOrShort = currentUrl.contains("watch?v=") || currentUrl.contains("/shorts/")
+        if (!isWatchOrShort) return
+
+        val js = """
+            (function() {
                 var playlist = [];
                 var seenUrls = new Set();
 
-                // 1. Intentar extraer de la playlist/mix activa de YouTube (ytm-playlist-panel-video-renderer)
+                // 1. Intentar extraer de la playlist/mix activa de YouTube
                 var playlistItems = document.querySelectorAll('ytm-playlist-panel-video-renderer, .playlist-panel-video-renderer, ytm-playlist-panel-renderer ytm-playlist-panel-video-renderer');
                 if (playlistItems && playlistItems.length > 0) {
                     playlistItems.forEach(function(item) {
@@ -434,7 +534,7 @@ class MainActivity : AppCompatActivity() {
                     });
                 }
 
-                // 2. Si no hay mix/playlist activa, extraer recomendaciones (Up Next / Feed)
+                // 2. Si no hay mix/playlist activa, extraer recomendaciones
                 if (playlist.length === 0) {
                     var items = document.querySelectorAll('ytm-media-item, ytm-compact-video-renderer, ytm-video-with-context-renderer, ytm-rich-item-renderer, .compact-media-item');
                     items.forEach(function(item) {
@@ -463,7 +563,7 @@ class MainActivity : AppCompatActivity() {
                     });
                 }
 
-                // 3. Fallback final por si no encuentra elementos estructurados
+                // 3. Fallback final
                 if (playlist.length === 0) {
                     var links = document.querySelectorAll('a[href*="/watch"], a[href*="watch?v="]');
                     links.forEach(function(link) {
@@ -489,111 +589,44 @@ class MainActivity : AppCompatActivity() {
                     });
                 }
 
-                var slicedPlaylist = playlist.slice(0, 20);
-
-                if (!video) return { title: "YouTube Shield", isPlaying: false, ended: false, position: 0, duration: 0, playlist: slicedPlaylist };
-                
-                var title = document.title;
-                title = title.replace(/^\(\d+\)\s+/, '');
-                if (title.endsWith(' - YouTube')) {
-                    title = title.substring(0, title.length - 10);
-                }
-                
-                var posMs = Math.floor(video.currentTime * 1000);
-                var durMs = isNaN(video.duration) ? 0 : Math.floor(video.duration * 1000);
-                var isVideoEnded = video.ended || (posMs > 0 && durMs > 0 && posMs >= durMs - 1500);
-                
-                return {
-                    title: title || "YouTube Video",
-                    isPlaying: !video.paused && !isVideoEnded,
-                    ended: isVideoEnded,
-                    position: posMs,
-                    duration: durMs,
-                    playlist: slicedPlaylist
-                };
+                return playlist.slice(0, 20);
             })()
         """.trimIndent()
 
         webView.evaluateJavascript(js) { result ->
             if (result != null && result != "null" && result != "\"null\"") {
                 try {
-                    val json = org.json.JSONObject(result)
-                    val title = json.optString("title", "YouTube Shield")
-                    val isPlaying = json.optBoolean("isPlaying", false)
-                    val ended = json.optBoolean("ended", false)
-                    val position = json.optLong("position", 0L)
-                    val duration = json.optLong("duration", 0L)
-                    
-                    if (ended && !isLoopEnabled && !isNavigatingNextOnEnd) {
-                        isNavigatingNextOnEnd = true
-                        android.util.Log.d("Shield", "Video finalizado. Navegando al siguiente de la lista.")
-                        navigatePlaylist(next = true)
-                    }
-                    
-                    // Parsear la playlist recibida
-                    val playlistArray = json.optJSONArray("playlist")
+                    val playlistArray = org.json.JSONArray(result)
                     val newPlaylist = ArrayList<PlaylistRepository.PlaylistItem>()
-                    if (playlistArray != null) {
-                        for (i in 0 until playlistArray.length()) {
-                            val itemObj = playlistArray.getJSONObject(i)
-                            val itemTitle = itemObj.optString("title", "")
-                            val itemUrl = itemObj.optString("url", "")
-                            val itemChannel = itemObj.optString("channel", "")
-                            if (itemTitle.isNotEmpty() && itemUrl.isNotEmpty()) {
-                                newPlaylist.add(PlaylistRepository.PlaylistItem(itemTitle, itemUrl, itemChannel))
-                            }
+                    for (i in 0 until playlistArray.length()) {
+                        val itemObj = playlistArray.getJSONObject(i)
+                        val itemTitle = itemObj.optString("title", "")
+                        val itemUrl = itemObj.optString("url", "")
+                        val itemChannel = itemObj.optString("channel", "")
+                        if (itemTitle.isNotEmpty() && itemUrl.isNotEmpty()) {
+                            newPlaylist.add(PlaylistRepository.PlaylistItem(itemTitle, itemUrl, itemChannel))
                         }
                     }
-                    
-                    // Si ha cambiado la playlist o la canción activa (comparando IDs de video), actualizar el repositorio y el Widget
-                    val oldVideoId = getVideoId(PlaylistRepository.currentPlayingUrl)
-                    val newVideoId = getVideoId(currentUrl)
-                    val urlChanged = oldVideoId != newVideoId
-                    
+
                     val oldUrls = PlaylistRepository.playlist.map { it.url }
                     val newUrls = newPlaylist.map { it.url }
                     
-                    // Si la nueva playlist está vacía y estamos en una página de video/shorts,
-                    // asumimos que es una carga intermedia y NO actualizamos la lista con elementos vacíos.
                     val shouldKeepOldPlaylist = newPlaylist.isEmpty() && isWatchOrShort
                     val playlistChanged = !shouldKeepOldPlaylist && (oldUrls != newUrls)
                     
-                    if (playlistChanged || urlChanged || PlaylistRepository.isPlaying != isPlaying) {
+                    if (playlistChanged) {
                         if (!shouldKeepOldPlaylist) {
                             PlaylistRepository.playlist = newPlaylist
                         }
-                        PlaylistRepository.currentPlayingUrl = currentUrl
-                        PlaylistRepository.isPlaying = isPlaying
                         PlaylistWidgetProvider.refreshPlaylist(this@MainActivity)
                     }
-
-                    if (urlChanged && newVideoId != null) {
-                        triggerShieldPulse(newVideoId, shouldReload = true)
-                    }
-
-                    if (isPlaying && isShieldActive && !isDynamicShieldActive) {
-                        isDynamicShieldActive = true
-                        runOnUiThread {
-                            injectAdBlockScript()
-                        }
-                    }
-                    
-                    if (isWatchOrShort) {
-                        playbackService?.updateMetadata(title, isPlaying, isLoopEnabled, currentThumbnail, position, duration)
-                    }
-
-                    // Gestionar Wake Lock según el estado de reproducción
-                    if (isPlaying) {
-                        acquireWakeLock()
-                    } else {
-                        releaseWakeLock()
-                    }
-                } catch (e: Exception) {
-                    // Ignorar errores de parsing
+                } catch (e: java.lang.Exception) {
+                    android.util.Log.e("Shield", "Error parsing playlist", e)
                 }
             }
         }
     }
+
 
     private fun fetchThumbnail(videoId: String) {
         Thread {
@@ -872,74 +905,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Limpia agresivamente los anuncios del DOM actual sin necesidad de recargar.
-     * Elimina overlays de ads activos, salta ads de video y purga elementos de ad del DOM.
-     */
-    private fun forceAdCleanup() {
-        val js = """
-            (function() {
-                // 1. Si hay un ad de video reproduciéndose, forzar skip
-                var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
-                if (player) {
-                    // Detectar si está mostrando un ad
-                    if (player.classList.contains('ad-showing') || player.classList.contains('ad-interrupting')) {
-                        try {
-                            // Intentar skip via API del player de YouTube
-                            if (typeof player.skipAd === 'function') player.skipAd();
-                            if (typeof player.cancelPlaybackAd === 'function') player.cancelPlaybackAd();
-                        } catch(e) {}
-                        // Click en botón de skip si existe
-                        var skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button, button[class*="skip"]');
-                        if (skipBtn) skipBtn.click();
-                        // Forzar salto del ad via el elemento video
-                        var video = document.querySelector('video');
-                        if (video && video.duration && video.duration < 300) {
-                            video.currentTime = video.duration;
-                        }
-                    }
-                }
 
-                // 2. Purgar todos los elementos de ad del DOM
-                var adSelectors = [
-                    'ytd-companion-ad-renderer', 'ytm-companion-ad-renderer',
-                    'ytd-display-ad-renderer', 'ytm-display-ad-renderer',
-                    'ytm-promoted-item', 'ytm-banner-ad-renderer',
-                    'ytm-inline-ad-renderer', 'ytm-carousel-ad-renderer',
-                    'ytm-promoted-sparkles-web-renderer', 'ytd-promoted-sparkles-web-renderer',
-                    'ytm-promoted-video-renderer', 'ytd-promoted-video-renderer',
-                    '.video-ads', '.ytp-ad-module', '.ytp-ad-overlay-container',
-                    '.ytp-ad-image-overlay', '.companion-ad-container',
-                    '.ad-showing', '.ad-interrupting', '.ytp-ad-player-overlay',
-                    '.ytp-ad-player-overlay-layout', '.ytp-ad-progress',
-                    '.ytp-ad-skip-button-container', '.ytp-ad-preview-container',
-                    '#player-ads', '#masthead-ad',
-                    'ytm-statement-banner-ad-renderer', 'ytm-interactive-tabbed-header-ad-renderer',
-                    'ytm-video-ad-card-renderer', 'ytd-video-ad-card-renderer',
-                    '[class*="ad-container"]:not([class*="additional"]):not([class*="admin"])',
-                    '[class*="sponsored"]'
-                ];
-                adSelectors.forEach(function(sel) {
-                    try {
-                        document.querySelectorAll(sel).forEach(function(el) {
-                            el.style.display = 'none';
-                            el.style.height = '0';
-                            el.style.width = '0';
-                            el.style.visibility = 'hidden';
-                        });
-                    } catch(e) {}
-                });
-
-                // 3. Remover clases de ad del player
-                if (player) {
-                    player.classList.remove('ad-showing', 'ad-interrupting');
-                }
-
-                console.log('Shield: forceAdCleanup ejecutado');
-            })();
-        """.trimIndent()
-        webView.evaluateJavascript(js, null)
-    }
 
     private fun setupWebView() {
         // Limpiar base de datos, local storage y Service Workers registrados al iniciar
@@ -1172,6 +1138,9 @@ class MainActivity : AppCompatActivity() {
 
         val jsScript = """
             (function() {
+                if (window.shieldAdBlockInjected) return;
+                window.shieldAdBlockInjected = true;
+
                 // 1. Inyectar estilos CSS
                 if (!document.getElementById('shield-adblock-styles')) {
                     var style = document.createElement('style');
