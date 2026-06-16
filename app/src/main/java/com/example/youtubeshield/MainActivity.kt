@@ -901,6 +901,8 @@ class MainActivity : AppCompatActivity() {
 
         settings.userAgentString = "Mozilla/5.0 (Linux; Android 13; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36"
 
+        webView.addJavascriptInterface(WebAppInterface(this), "AndroidInterface")
+
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url.toString()
@@ -1283,44 +1285,45 @@ class MainActivity : AppCompatActivity() {
             (function() {
                 if (window.shieldSpaListenerActive) return;
                 window.shieldSpaListenerActive = true;
-                var lastUrl = location.href;
 
-                // Listener para eventos nativos de navegación SPA de YouTube
-                var spaEvents = ['yt-navigate-finish', 'yt-page-data-updated', 'yt-navigate-start'];
-                spaEvents.forEach(function(eventName) {
-                    document.addEventListener(eventName, function() {
-                        var newUrl = location.href;
-                        if (newUrl !== lastUrl) {
-                            lastUrl = newUrl;
-                            if (newUrl.indexOf('watch?v=') !== -1 || newUrl.indexOf('/shorts/') !== -1) {
-                                console.log('Shield: SPA navigation detectada via ' + eventName + ': ' + newUrl);
-                                // Re-aplicar estilos de bloqueo CSS
-                                var styleEl = document.getElementById('shield-adblock-styles');
-                                if (styleEl) {
-                                    document.head.removeChild(styleEl);
-                                }
-                                // Forzar re-creación del observer
-                                if (window.shieldAdObserver) {
-                                    window.shieldAdObserver.disconnect();
-                                    window.shieldAdObserver = null;
-                                }
-                            }
+                var handleSpaNavigation = function(url) {
+                    if (!url) return;
+                    if (url.indexOf('watch?v=') !== -1 || url.indexOf('/shorts/') !== -1) {
+                        if (window.AndroidInterface && typeof window.AndroidInterface.onSpaNavigate === 'function') {
+                            window.AndroidInterface.onSpaNavigate(url);
                         }
-                    });
+                    }
+                };
+
+                // Interceptar llamadas directas a pushState y replaceState
+                var origPushState = history.pushState;
+                history.pushState = function(state, title, url) {
+                    origPushState.apply(this, arguments);
+                    handleSpaNavigation(url || location.href);
+                };
+
+                var origReplaceState = history.replaceState;
+                history.replaceState = function(state, title, url) {
+                    origReplaceState.apply(this, arguments);
+                    handleSpaNavigation(url || location.href);
+                };
+
+                // Escuchar eventos nativos de SPA de YouTube
+                document.addEventListener('yt-navigate-start', function(e) {
+                    var targetUrl = location.href;
+                    if (e.detail && e.detail.url) {
+                        targetUrl = e.detail.url;
+                    }
+                    handleSpaNavigation(targetUrl);
                 });
 
-                // Fallback: MutationObserver en <title> para detectar cambios de video
+                // Fallback adicional por si cambia el título sin disparar los anteriores
+                var lastUrl = location.href;
                 var titleObserver = new MutationObserver(function() {
                     var newUrl = location.href;
                     if (newUrl !== lastUrl) {
                         lastUrl = newUrl;
-                        if (newUrl.indexOf('watch?v=') !== -1 || newUrl.indexOf('/shorts/') !== -1) {
-                            console.log('Shield: SPA navigation detectada via title change: ' + newUrl);
-                            if (window.shieldAdObserver) {
-                                window.shieldAdObserver.disconnect();
-                                window.shieldAdObserver = null;
-                            }
-                        }
+                        handleSpaNavigation(newUrl);
                     }
                 });
                 var titleEl = document.querySelector('title');
@@ -1328,7 +1331,7 @@ class MainActivity : AppCompatActivity() {
                     titleObserver.observe(titleEl, { childList: true, characterData: true, subtree: true });
                 }
 
-                console.log('Shield: SPA navigation listener instalado');
+                console.log('Shield: SPA navigation listener e interceptor instalado');
             })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)
@@ -1913,5 +1916,33 @@ class MainActivity : AppCompatActivity() {
             // Ignorar
         }
         return null
+    }
+
+    inner class WebAppInterface(private val context: Context) {
+        @JavascriptInterface
+        fun onSpaNavigate(url: String) {
+            runOnUiThread {
+                val cleanUrl = when {
+                    url.startsWith("http://") || url.startsWith("https://") -> url
+                    url.startsWith("/") -> "https://m.youtube.com$url"
+                    else -> "https://m.youtube.com/$url"
+                }
+                val newVideoId = getVideoId(cleanUrl)
+                if (newVideoId != null && newVideoId != lastPulseVideoId) {
+                    android.util.Log.d("Shield", "SPA navigation intercepted: $cleanUrl (newVideoId: $newVideoId)")
+                    
+                    // Mostrar overlay de transición inmediatamente
+                    transitionOverlay.alpha = 1f
+                    transitionOverlay.visibility = View.VISIBLE
+                    isPulseOverlayPendingHide = true
+                    
+                    // Iniciar pulso del escudo
+                    triggerShieldPulse(newVideoId, shouldReload = false)
+                    
+                    // Forzar carga de página limpia
+                    webView.loadUrl(cleanUrl)
+                }
+            }
+        }
     }
 }
