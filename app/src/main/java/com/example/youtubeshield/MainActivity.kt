@@ -53,6 +53,7 @@ class MainActivity : AppCompatActivity() {
 
     // Variables de control para el pulso automático del escudo
     private var isPulseActive = false
+    private var isPulseOverlayPendingHide = false
     private var lastPulseVideoId: String? = null
     private var lastTransitionPosition = 0
     private val shieldPulseHandler = Handler(Looper.getMainLooper())
@@ -61,6 +62,14 @@ class MainActivity : AppCompatActivity() {
         isPulseActive = false
         updateShieldUI()
         android.util.Log.d("Shield", "Escudo reactivado automáticamente después del pulso")
+    }
+    // Runnable de seguridad: oculta el overlay de transición tras un timeout máximo
+    private val pulseOverlaySafetyRunnable = Runnable {
+        if (isPulseOverlayPendingHide) {
+            isPulseOverlayPendingHide = false
+            hideTransitionOverlay()
+            android.util.Log.d("Shield", "Overlay de transición ocultado por timeout de seguridad")
+        }
     }
 
     // Wake lock para mantener CPU activa durante reproducción en segundo plano
@@ -465,7 +474,7 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     if (urlChanged && newVideoId != null) {
-                        triggerShieldPulse(newVideoId)
+                        triggerShieldPulse(newVideoId, shouldReload = true)
                     }
 
                     if (isPlaying && isShieldActive && !isDynamicShieldActive) {
@@ -482,6 +491,13 @@ class MainActivity : AppCompatActivity() {
                     // Gestionar Wake Lock según el estado de reproducción
                     if (isPlaying) {
                         acquireWakeLock()
+                        // Si el overlay de transición está pendiente de ocultarse y el video ya reproduce, ocultarlo
+                        if (isPulseOverlayPendingHide) {
+                            isPulseOverlayPendingHide = false
+                            shieldPulseHandler.removeCallbacks(pulseOverlaySafetyRunnable)
+                            hideTransitionOverlay()
+                            android.util.Log.d("Shield", "Overlay de transición ocultado: video reproduciéndose")
+                        }
                     } else {
                         releaseWakeLock()
                     }
@@ -793,7 +809,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun triggerShieldPulse(videoId: String?) {
+    private fun triggerShieldPulse(videoId: String?, shouldReload: Boolean) {
         if (videoId == null || videoId == lastPulseVideoId) return
         lastPulseVideoId = videoId
 
@@ -801,18 +817,57 @@ class MainActivity : AppCompatActivity() {
         val globalShieldActive = prefs.getBoolean("shield_active", true)
         if (!globalShieldActive) return
 
-        android.util.Log.d("Shield", "Iniciando pulso del escudo para videoId: $videoId")
+        android.util.Log.d("Shield", "Iniciando pulso del escudo para videoId: $videoId (shouldReload: $shouldReload)")
 
         shieldPulseHandler.removeCallbacks(shieldPulseRunnable)
+        shieldPulseHandler.removeCallbacks(pulseOverlaySafetyRunnable)
 
-        // Desactivar escudo brevemente para permitir las peticiones de red iniciales del player,
-        // los interceptores JS (fetch/XHR/JSON.parse) ya limpian los datos de anuncios.
-        // No se recarga la página para evitar interrumpir la reproducción.
         isShieldActive = false
         isPulseActive = true
         updateShieldUI()
 
+        if (shouldReload) {
+            // Marcar que el overlay debe permanecer visible hasta que el video reproduzca
+            isPulseOverlayPendingHide = true
+
+            runOnUiThread {
+                // Mostrar transitionOverlay para ocultar el destello de la recarga
+                transitionOverlay.alpha = 1f
+                transitionOverlay.visibility = View.VISIBLE
+                try {
+                    transitionVideoView.seekTo(lastTransitionPosition)
+                    transitionVideoView.start()
+                } catch (e: Exception) {
+                    // Evitar crashes
+                }
+                webView.reload()
+            }
+
+            // Timeout de seguridad: ocultar overlay después de 7 segundos como máximo
+            shieldPulseHandler.postDelayed(pulseOverlaySafetyRunnable, 7000)
+        }
+
         shieldPulseHandler.postDelayed(shieldPulseRunnable, 150)
+    }
+
+    private fun hideTransitionOverlay() {
+        runOnUiThread {
+            if (transitionOverlay.visibility == View.VISIBLE) {
+                transitionOverlay.animate()
+                    .alpha(0f)
+                    .setDuration(400)
+                    .withEndAction {
+                        transitionOverlay.visibility = View.GONE
+                        transitionOverlay.alpha = 1f
+                        try {
+                            lastTransitionPosition = transitionVideoView.currentPosition
+                            transitionVideoView.pause()
+                        } catch (e: Exception) {
+                            // Evitar crashes
+                        }
+                    }
+            }
+        }
     }
 
     private fun hideOverlaysWithFade() {
@@ -831,20 +886,9 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
             }
-            if (transitionOverlay.visibility == View.VISIBLE) {
-                transitionOverlay.animate()
-                    .alpha(0f)
-                    .setDuration(350)
-                    .withEndAction {
-                        transitionOverlay.visibility = View.GONE
-                        transitionOverlay.alpha = 1f
-                        try {
-                            lastTransitionPosition = transitionVideoView.currentPosition
-                            transitionVideoView.pause()
-                        } catch (e: Exception) {
-                            // Evitar crashes
-                        }
-                    }
+            // Solo ocultar el overlay de transición si NO hay un pulso pendiente de que el video reproduzca
+            if (!isPulseOverlayPendingHide) {
+                hideTransitionOverlay()
             }
         }
     }
@@ -980,7 +1024,7 @@ class MainActivity : AppCompatActivity() {
                 val isWatchOrShort = cleanUrl.contains("watch?v=") || cleanUrl.contains("/shorts/")
                 val newVideoId = getVideoId(cleanUrl)
                 if (isShieldActive && isWatchOrShort && newVideoId != null && newVideoId != lastPulseVideoId) {
-                    triggerShieldPulse(newVideoId)
+                    triggerShieldPulse(newVideoId, shouldReload = true)
                 }
             }
         }
@@ -1886,7 +1930,7 @@ class MainActivity : AppCompatActivity() {
         PlaylistWidgetProvider.refreshPlaylist(this)
 
         val videoId = getVideoId(fullUrl)
-        triggerShieldPulse(videoId)
+        triggerShieldPulse(videoId, shouldReload = false)
 
         webView.post {
             webView.loadUrl(fullUrl)
