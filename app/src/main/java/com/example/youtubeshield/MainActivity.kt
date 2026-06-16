@@ -465,7 +465,7 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     if (urlChanged && newVideoId != null) {
-                        triggerShieldPulse(newVideoId, shouldReload = true)
+                        triggerShieldPulse(newVideoId)
                     }
 
                     if (isPlaying && isShieldActive && !isDynamicShieldActive) {
@@ -793,7 +793,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun triggerShieldPulse(videoId: String?, shouldReload: Boolean) {
+    private fun triggerShieldPulse(videoId: String?) {
         if (videoId == null || videoId == lastPulseVideoId) return
         lastPulseVideoId = videoId
 
@@ -801,28 +801,16 @@ class MainActivity : AppCompatActivity() {
         val globalShieldActive = prefs.getBoolean("shield_active", true)
         if (!globalShieldActive) return
 
-        android.util.Log.d("Shield", "Iniciando pulso del escudo para videoId: $videoId (shouldReload: $shouldReload)")
+        android.util.Log.d("Shield", "Iniciando pulso del escudo para videoId: $videoId")
 
         shieldPulseHandler.removeCallbacks(shieldPulseRunnable)
 
+        // Desactivar escudo brevemente para permitir las peticiones de red iniciales del player,
+        // los interceptores JS (fetch/XHR/JSON.parse) ya limpian los datos de anuncios.
+        // No se recarga la página para evitar interrumpir la reproducción.
         isShieldActive = false
         isPulseActive = true
         updateShieldUI()
-
-        runOnUiThread {
-            // Mostrar transitionOverlay de inmediato para ocultar el destello de la recarga
-            transitionOverlay.alpha = 1f
-            transitionOverlay.visibility = View.VISIBLE
-            try {
-                transitionVideoView.seekTo(lastTransitionPosition)
-                transitionVideoView.start()
-            } catch (e: Exception) {
-                // Evitar crashes
-            }
-            if (shouldReload) {
-                webView.reload()
-            }
-        }
 
         shieldPulseHandler.postDelayed(shieldPulseRunnable, 150)
     }
@@ -992,7 +980,7 @@ class MainActivity : AppCompatActivity() {
                 val isWatchOrShort = cleanUrl.contains("watch?v=") || cleanUrl.contains("/shorts/")
                 val newVideoId = getVideoId(cleanUrl)
                 if (isShieldActive && isWatchOrShort && newVideoId != null && newVideoId != lastPulseVideoId) {
-                    triggerShieldPulse(newVideoId, shouldReload = true)
+                    triggerShieldPulse(newVideoId)
                 }
             }
         }
@@ -1898,7 +1886,7 @@ class MainActivity : AppCompatActivity() {
         PlaylistWidgetProvider.refreshPlaylist(this)
 
         val videoId = getVideoId(fullUrl)
-        triggerShieldPulse(videoId, shouldReload = false)
+        triggerShieldPulse(videoId)
 
         webView.post {
             webView.loadUrl(fullUrl)
