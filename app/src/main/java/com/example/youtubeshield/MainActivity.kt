@@ -24,7 +24,6 @@ import android.graphics.ImageDecoder
 import android.graphics.drawable.AnimatedImageDrawable
 import android.widget.ImageView
 import android.widget.ProgressBar
-import android.widget.VideoView
 import android.os.PowerManager
 import java.io.ByteArrayInputStream
 
@@ -41,8 +40,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var splashOverlay: FrameLayout
     private lateinit var transitionOverlay: FrameLayout
     private lateinit var transitionProgressBar: ProgressBar
-    private lateinit var transitionVideoView: VideoView
-    private lateinit var splashVideoView: VideoView
     private lateinit var btnShield: ImageButton
 
     private var isShieldActive = true
@@ -55,7 +52,6 @@ class MainActivity : AppCompatActivity() {
     private var isPulseActive = false
     private var isPulseOverlayPendingHide = false
     private var lastPulseVideoId: String? = null
-    private var lastTransitionPosition = 0
     private val shieldPulseHandler = Handler(Looper.getMainLooper())
     private val shieldPulseRunnable = Runnable {
         isShieldActive = true
@@ -178,42 +174,7 @@ class MainActivity : AppCompatActivity() {
         splashOverlay = findViewById(R.id.splashOverlay)
         transitionOverlay = findViewById(R.id.transitionOverlay)
         transitionProgressBar = findViewById(R.id.transitionProgressBar)
-        transitionVideoView = findViewById(R.id.transitionVideoView)
-        splashVideoView = findViewById(R.id.splashVideoView)
         btnShield = findViewById(R.id.btnShield)
-
-        // Configurar video de transición desde res/raw/transicion.mp4
-        try {
-            val videoUri = Uri.parse("android.resource://" + packageName + "/" + R.raw.transicion)
-            transitionVideoView.setVideoURI(videoUri)
-            transitionVideoView.setOnPreparedListener { mediaPlayer ->
-                mediaPlayer.isLooping = true
-                mediaPlayer.setVolume(0f, 0f)
-            }
-            transitionVideoView.setOnErrorListener { _, _, _ ->
-                true // Prevenir el diálogo nativo de error si falla la reproducción
-            }
-        } catch (e: Exception) {
-            // Evitar bloqueos si falla la carga
-        }
-
-        // Configurar video del splash desde res/raw/splash.mp4
-        try {
-            val splashLogo = findViewById<ImageView>(R.id.splashLogo)
-            val videoUri = Uri.parse("android.resource://" + packageName + "/" + R.raw.splash)
-            splashVideoView.setVideoURI(videoUri)
-            splashVideoView.setOnPreparedListener { mediaPlayer ->
-                mediaPlayer.isLooping = true
-                mediaPlayer.setVolume(0f, 0f)
-                splashVideoView.start()
-            }
-            splashVideoView.setOnErrorListener { _, _, _ ->
-                splashLogo?.visibility = View.VISIBLE
-                true
-            }
-        } catch (e: Exception) {
-            findViewById<ImageView>(R.id.splashLogo)?.visibility = View.VISIBLE
-        }
 
         setupNavigationButtons()
         setupWebView()
@@ -831,15 +792,9 @@ class MainActivity : AppCompatActivity() {
             isPulseOverlayPendingHide = true
 
             runOnUiThread {
-                // Mostrar transitionOverlay para ocultar el destello de la recarga
+                // Mostrar transitionOverlay con logo para ocultar el destello de la recarga
                 transitionOverlay.alpha = 1f
                 transitionOverlay.visibility = View.VISIBLE
-                try {
-                    transitionVideoView.seekTo(lastTransitionPosition)
-                    transitionVideoView.start()
-                } catch (e: Exception) {
-                    // Evitar crashes
-                }
                 webView.reload()
             }
 
@@ -859,12 +814,6 @@ class MainActivity : AppCompatActivity() {
                     .withEndAction {
                         transitionOverlay.visibility = View.GONE
                         transitionOverlay.alpha = 1f
-                        try {
-                            lastTransitionPosition = transitionVideoView.currentPosition
-                            transitionVideoView.pause()
-                        } catch (e: Exception) {
-                            // Evitar crashes
-                        }
                     }
             }
         }
@@ -879,11 +828,6 @@ class MainActivity : AppCompatActivity() {
                     .withEndAction {
                         splashOverlay.visibility = View.GONE
                         splashOverlay.alpha = 1f
-                        try {
-                            splashVideoView.pause()
-                        } catch (e: Exception) {
-                            // Evitar crashes
-                        }
                     }
             }
             // Solo ocultar el overlay de transición si NO hay un pulso pendiente de que el video reproduzca
