@@ -435,7 +435,10 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     if (urlChanged && newVideoId != null) {
-                        triggerShieldPulse(newVideoId, shouldReload = true)
+                        lastPulseVideoId = newVideoId
+                        if (isShieldActive) {
+                            reInjectShieldScripts()
+                        }
                     }
 
                     if (isPlaying && isShieldActive && !isDynamicShieldActive) {
@@ -964,13 +967,14 @@ class MainActivity : AppCompatActivity() {
                 isNavigatingNextOnEnd = false
                 val cleanUrl = url ?: ""
                 currentActiveUrl = cleanUrl
-                
-                // Si el escudo está activo y detectamos navegación a un video o short que es nuevo,
-                // disparamos el pulso del escudo (el cual mostrará el transitionOverlay y recargará el WebView).
-                val isWatchOrShort = cleanUrl.contains("watch?v=") || cleanUrl.contains("/shorts/")
+                // La navegación SPA de YouTube maneja la transición naturalmente sin recarga.
+                // Solo actualizamos tracking, sin forzar reload.
                 val newVideoId = getVideoId(cleanUrl)
-                if (isShieldActive && isWatchOrShort && newVideoId != null && newVideoId != lastPulseVideoId) {
-                    triggerShieldPulse(newVideoId, shouldReload = true)
+                if (newVideoId != null && newVideoId != lastPulseVideoId) {
+                    lastPulseVideoId = newVideoId
+                    if (isShieldActive) {
+                        reInjectShieldScripts()
+                    }
                 }
             }
         }
@@ -1317,6 +1321,14 @@ class MainActivity : AppCompatActivity() {
                     handleSpaNavigation(targetUrl);
                 });
 
+                // Notificar cuando la navegación SPA se complete
+                document.addEventListener('yt-navigate-end', function(e) {
+                    if (window.AndroidInterface && typeof window.AndroidInterface.onSpaNavigateEnd === 'function') {
+                        var finalUrl = location.href;
+                        window.AndroidInterface.onSpaNavigateEnd(finalUrl);
+                    }
+                });
+
                 // Fallback adicional por si cambia el título sin disparar los anteriores
                 var lastUrl = location.href;
                 var titleObserver = new MutationObserver(function() {
@@ -1335,6 +1347,15 @@ class MainActivity : AppCompatActivity() {
             })();
         """.trimIndent()
         webView.evaluateJavascript(js, null)
+    }
+
+    private fun reInjectShieldScripts() {
+        if (!isShieldActive) return
+        // Los overrides JS (visibility, pause prevention, ytcfg) persisten
+        // en los objetos window/document tras navegación SPA.
+        // Solo re-inyectamos el CSS de ad-block y actualizamos la playlist.
+        injectAdBlockScript()
+        queryPlaylistAndRecommendations()
     }
 
     private fun injectVisibilityOverride() {
@@ -1929,18 +1950,25 @@ class MainActivity : AppCompatActivity() {
                 }
                 val newVideoId = getVideoId(cleanUrl)
                 if (newVideoId != null && newVideoId != lastPulseVideoId) {
-                    android.util.Log.d("Shield", "SPA navigation intercepted: $cleanUrl (newVideoId: $newVideoId)")
+                    android.util.Log.d("Shield", "SPA navigation to: $cleanUrl")
+                    lastPulseVideoId = newVideoId
+                    currentActiveUrl = cleanUrl
+                    PlaylistRepository.currentPlayingUrl = cleanUrl
                     
-                    // Mostrar overlay de transición inmediatamente
-                    transitionOverlay.alpha = 1f
-                    transitionOverlay.visibility = View.VISIBLE
-                    isPulseOverlayPendingHide = true
-                    
-                    // Iniciar pulso del escudo
-                    triggerShieldPulse(newVideoId, shouldReload = false)
-                    
-                    // Forzar carga de página limpia
-                    webView.loadUrl(cleanUrl)
+                    if (isShieldActive) {
+                        reInjectShieldScripts()
+                    }
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun onSpaNavigateEnd(url: String) {
+            runOnUiThread {
+                android.util.Log.d("Shield", "SPA navigation completed: $url")
+                // La navegación SPA ya completó, actualizamos playlist
+                if (isShieldActive) {
+                    queryPlaylistAndRecommendations()
                 }
             }
         }
