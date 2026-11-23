@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">YouTube Shield</string>
+    <string name="app_name_tv">YouTube Shield TV</string>
     <string name="widget_description">Midnight Melodies playlist player</string>
+    <string name="tv_shield_enabled">🛡️ Escudo Shield: ACTIVO (Bloqueo Total)</string>
+    <string name="tv_shield_disabled">⚠️ Escudo Shield: PAUSADO</string>
+    <string name="tv_exit_prompt">Presiona ATRÁS nuevamente para salir</string>
+    <string name="tv_reload">Recargar página</string>
+    <string name="tv_connection_error">Sin conexión a internet. Revisa tu red y presiona ENTER para reintentar.</string>
 </resources>

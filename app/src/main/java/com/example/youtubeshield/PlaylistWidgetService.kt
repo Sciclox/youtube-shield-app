@@ -117,8 +117,18 @@ class PlaylistViewsFactory(private val context: Context) : RemoteViewsService.Re
             }
         }
 
+        val normalizedUrl = if (videoId != null) {
+            "https://m.youtube.com/watch?v=$videoId"
+        } else if (item.url.startsWith("http://") || item.url.startsWith("https://")) {
+            item.url
+        } else if (item.url.startsWith("/")) {
+            "https://m.youtube.com${item.url}"
+        } else {
+            "https://m.youtube.com/${item.url}"
+        }
+
         val fillInIntent = Intent().apply {
-            putExtra("video_url", item.url)
+            putExtra("video_url", normalizedUrl)
             putExtra("video_title", item.title)
             putExtra("video_position", position)
         }

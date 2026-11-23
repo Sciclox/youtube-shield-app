@@ -10,3 +10,7 @@
 .idea/
 capture/
 *.apk
+
+local.properties
+app/local.properties
+*.png

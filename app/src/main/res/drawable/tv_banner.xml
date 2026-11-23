@@ -1,0 +1,97 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+
+    <!-- Fondo Degradado Cyber Dark -->
+    <path
+        android:pathData="M0,0h320v180h-320z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="0"
+                android:startY="0"
+                android:endX="320"
+                android:endY="180"
+                android:type="linear">
+                <item android:color="#FF0D0F18" android:offset="0.0" />
+                <item android:color="#FF141829" android:offset="0.5" />
+                <item android:color="#FF1A0B1E" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Borde de Acento Neón Superior e Inferior -->
+    <path
+        android:pathData="M0,0h320v3h-320z"
+        android:fillColor="#FF2ECC71" />
+    <path
+        android:pathData="M0,177h320v3h-320z"
+        android:fillColor="#FFFF2A2A" />
+
+    <!-- Sombra / Resplandor del Escudo -->
+    <path
+        android:fillColor="#332ECC71"
+        android:pathData="M160,20 C105,20 85,38 85,76 C85,125 150,158 160,163 C170,158 235,125 235,76 C235,38 215,20 160,20 Z" />
+
+    <!-- Escudo Principal Neón -->
+    <path
+        android:pathData="M160,28 C115,28 98,42 98,76 C98,118 152,148 160,152 C168,148 222,118 222,76 C222,42 205,28 160,28 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="98"
+                android:startY="28"
+                android:endX="222"
+                android:endY="152"
+                android:type="linear">
+                <item android:color="#FF1E2436" android:offset="0.0" />
+                <item android:color="#FF12141F" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Contorno Escudo Verde Neón / Escudo Activo -->
+    <path
+        android:strokeWidth="3.5"
+        android:strokeColor="#FF2ECC71"
+        android:pathData="M160,28 C115,28 98,42 98,76 C98,118 152,148 160,152 C168,148 222,118 222,76 C222,42 205,28 160,28 Z" />
+
+    <!-- Insignia Central Roja YouTube -->
+    <path
+        android:pathData="M125,62 h70 c6.6,0 12,5.4 12,12 v18 c0,6.6 -5.4,12 -12,12 h-70 c-6.6,0 -12,-5.4 -12,-12 v-18 c0,-6.6 5.4,-12 12,-12 z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="125"
+                android:startY="62"
+                android:endX="207"
+                android:endY="104"
+                android:type="linear">
+                <item android:color="#FFFF334B" android:offset="0.0" />
+                <item android:color="#FFCC0000" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Triángulo de Reproducción Blanco Neón -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M152,72.5 l20,10.5 l-20,10.5 z" />
+
+    <!-- Badge 'TV' en la esquina inferior derecha -->
+    <path
+        android:pathData="M255,135 h45 c3,0 6,3 6,6 v16 c0,3 -3,6 -6,6 h-45 c-3,0 -6,-3 -6,-6 v-16 c0,-3 3,-6 6,-6 z"
+        android:fillColor="#FF2ECC71" />
+    <path
+        android:pathData="M266,142 h8 v2 h-3 v9 h-2 v-9 h-3 z M277,142 h2.5 l3,8.5 l3,-8.5 h2.5 l-4.5,11 h-2 z"
+        android:fillColor="#FF0D0F18" />
+
+    <!-- Badge 'SHIELD' en la esquina superior izquierda -->
+    <path
+        android:pathData="M18,18 h68 c3,0 6,3 6,6 v14 c0,3 -3,6 -6,6 h-68 c-3,0 -6,-3 -6,-6 v-14 c0,-3 3,-6 6,-6 z"
+        android:fillColor="#332ECC71" />
+    <!-- Letra S H I E L D simplificada en vector -->
+    <path
+        android:pathData="M24,24 h4 v1 h-3 v3 h3 v3 h-4 v-1 h3 v-1 h-3 z"
+        android:fillColor="#FF2ECC71" />
+</vector>

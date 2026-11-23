@@ -1001,6 +1001,11 @@ class MainActivity : AppCompatActivity() {
             override fun onHideCustomView() {
                 hideCustomView()
             }
+
+            // Elimina el poster/placeholder por defecto de Android WebView (icono/óvalo gris con botón de reproducción)
+            override fun getDefaultVideoPoster(): Bitmap {
+                return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+            }
         }
 
         webView.loadUrl("https://m.youtube.com")
@@ -1110,11 +1115,15 @@ class MainActivity : AppCompatActivity() {
             #ad-banner,
             [class*="ad-container"]:not([class*="additional"]):not([class*="admin"]),
             [class*="sponsored"],
-            [class*="merch-shelf"] { 
+            [class*="merch-shelf"],
+            video::-webkit-media-controls-start-playback-button,
+            video::-webkit-media-controls-play-button { 
                 display: none !important; 
                 height: 0 !important;
                 width: 0 !important;
                 visibility: hidden !important;
+                -webkit-appearance: none !important;
+                opacity: 0 !important;
             }
         """.trimIndent().replace("\n", " ")
 
@@ -1130,6 +1139,12 @@ class MainActivity : AppCompatActivity() {
                     style.type = 'text/css';
                     style.innerHTML = '$cssRules';
                     document.head.appendChild(style);
+                }
+
+                // Eliminar poster predeterminado del elemento de video si existe
+                var v = document.querySelector('video');
+                if (v && v.hasAttribute('poster')) {
+                    v.removeAttribute('poster');
                 }
                 // 2. MutationObserver desactivado para optimizar el rendimiento y evitar tirones de CPU
                 /*

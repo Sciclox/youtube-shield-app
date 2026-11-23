@@ -14,7 +14,7 @@ s.youtube.com
 ads.youtube.com
 youtube.com/pagead
 youtube.com/ptracking
-youtube-ui.l.google.com
+# youtube-ui.l.google.com
 partnerad.l.doubleclick.net
 youtubeadssignals.com
 youtubeads.google.com

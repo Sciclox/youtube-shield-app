@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/tvRootContainer"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/black"
+    tools:context=".tv.TvMainActivity">
+
+    <!-- WebView optimizado con persistencia de visibilidad para reproducción continua -->
+    <com.example.youtubeshield.BackgroundWebView
+        android:id="@+id/tvWebView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:nextFocusLeft="@id/tvWebView"
+        android:nextFocusRight="@id/tvWebView"
+        android:nextFocusUp="@id/tvWebView"
+        android:nextFocusDown="@id/tvWebView" />
+
+    <!-- HUD Overlay Flotante de Estado del Escudo (Top-Right) -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/tvHudCard"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="28dp"
+        android:layout_marginEnd="36dp"
+        android:alpha="0"
+        android:visibility="gone"
+        app:cardBackgroundColor="#E610131E"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="12dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="18dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="18dp"
+            android:paddingBottom="10dp">
+
+            <ImageView
+                android:id="@+id/tvHudIcon"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:src="@drawable/ic_shield"
+                app:tint="@color/shield_on" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvHudText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/tv_shield_enabled"
+                    android:textColor="@color/white"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvHudSubtext"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="PlayStation Cobalt • SponsorBlock: ON"
+                    android:textColor="#A0A5BC"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:background="#2E334D"
+                android:paddingStart="8dp"
+                android:paddingTop="2dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="2dp"
+                android:text="MENÚ / GUÍA"
+                android:textColor="@color/white"
+                android:textSize="10sp" />
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+    <!-- Pantalla de Carga Cyber Splash para TV (10-Foot UI) -->
+    <FrameLayout
+        android:id="@+id/tvSplashOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#0A0B10">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <androidx.cardview.widget.CardView
+                android:layout_width="140dp"
+                android:layout_height="140dp"
+                app:cardBackgroundColor="@android:color/transparent"
+                app:cardCornerRadius="32dp"
+                app:cardElevation="16dp">
+
+                <ImageView
+                    android:id="@+id/tvSplashLogo"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/ic_app_icon" />
+            </androidx.cardview.widget.CardView>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:letterSpacing="0.08"
+                android:text="YOUTUBE SHIELD TV"
+                android:textColor="@color/white"
+                android:textSize="22sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="Experiencia 10-foot sin publicidad con soporte para mando a distancia"
+                android:textColor="#A0A5BC"
+                android:textSize="14sp" />
+
+            <ProgressBar
+                android:id="@+id/tvSplashProgressBar"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:layout_marginTop="28dp"
+                android:indeterminateTint="@color/shield_on" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- Overlay de Error / Sin Conexión para TV -->
+    <FrameLayout
+        android:id="@+id/tvErrorContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#E60A0B10"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="520dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="32dp">
+
+            <ImageView
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:src="@drawable/ic_shield_grey"
+                app:tint="@color/primary_red" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:text="Problema de Conexión"
+                android:textColor="@color/white"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvErrorMessage"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:gravity="center"
+                android:text="@string/tv_connection_error"
+                android:textColor="#B0B5C9"
+                android:textSize="14sp" />
+
+            <Button
+                android:id="@+id/btnTvRetry"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:backgroundTint="@color/shield_on"
+                android:focusable="true"
+                android:paddingStart="28dp"
+                android:paddingEnd="28dp"
+                android:text="Reintentar (ENTER)"
+                android:textColor="@color/black"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </FrameLayout>
+
+</FrameLayout>

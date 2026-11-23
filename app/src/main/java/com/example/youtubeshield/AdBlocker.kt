@@ -1,7 +1,6 @@
 package com.example.youtubeshield
 
 import android.content.Context
-import android.net.Uri
 import android.util.Log
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -10,9 +9,11 @@ import java.util.HashSet
 object AdBlocker {
     private const val TAG = "AdBlocker"
     private val blockedDomains = HashSet<String>()
+    @Volatile
     private var isLoaded = false
     private val hostCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
 
+    @Synchronized
     fun init(context: Context) {
         if (isLoaded) return
         try {
@@ -29,37 +30,71 @@ object AdBlocker {
             reader.close()
             inputStream.close()
             isLoaded = true
-            Log.d(TAG, "AdBlocker cargado de forma síncrona con ${blockedDomains.size} dominios.")
+            Log.d(TAG, "AdBlocker cargado con ${blockedDomains.size} dominios.")
         } catch (e: Exception) {
             Log.e(TAG, "Error cargando dominios de AdBlocker", e)
         }
     }
 
     fun isAd(url: String): Boolean {
-        if (!isLoaded) return false
         try {
             val lowerUrl = url.lowercase()
-            // Detectar endpoints de publicidad y tracking internos de YouTube y Google
+
+            // 1. Detección inmediata por patrones de URL y endpoints publicitarios conocidos
             if (lowerUrl.contains("youtube.com/pagead") ||
                 lowerUrl.contains("youtube.com/ptracking") ||
                 lowerUrl.contains("youtube.com/api/stats/ads") ||
-                lowerUrl.contains("youtube.com/api/stats/qoe") ||
+                lowerUrl.contains("youtube.com/api/stats/atr") ||
+                lowerUrl.contains("youtube.com/pcs/activeview") ||
+                lowerUrl.contains("ads.youtube.com") ||
+                lowerUrl.contains("get_midroll_info") ||
+                lowerUrl.contains("stats/ads") ||
                 lowerUrl.contains("/pagead/gen_204") ||
                 lowerUrl.contains("/pagead/interaction") ||
+                lowerUrl.contains("/pagead/") ||
                 lowerUrl.contains("doubleclick.net") ||
                 lowerUrl.contains("googleads") ||
                 lowerUrl.contains("googlesyndication") ||
                 lowerUrl.contains("googletagservices.com") ||
                 lowerUrl.contains("googleadservices.com") ||
                 lowerUrl.contains("adservice.google") ||
-                lowerUrl.contains("/pagead/")
+                lowerUrl.contains("play.google.com/log") ||
+                lowerUrl.contains("innovid.com") ||
+                lowerUrl.contains("serving-sys.com")
             ) {
-                Log.d(TAG, "Bloqueado por patrón URL: $url")
+                Log.d(TAG, "Bloqueado por patrón URL publicitario: $url")
+                return true
+            }
+
+            // 2. Detección de streams publicitarios en googlevideo.com
+            if (lowerUrl.contains("googlevideo.com/videoplayback") &&
+                (lowerUrl.contains("adformat=") ||
+                 lowerUrl.contains("oad=") ||
+                 lowerUrl.contains("&ad=") ||
+                 lowerUrl.contains("?ad=") ||
+                 lowerUrl.contains("ad_type=") ||
+                 lowerUrl.contains("ad_break=") ||
+                 lowerUrl.contains("adunit") ||
+                 lowerUrl.contains("ctier=l"))
+            ) {
+                Log.d(TAG, "Bloqueado stream de video publicitario en googlevideo: $url")
                 return true
             }
 
             val host = getHost(url) ?: return false
-            
+
+            // Proteger dominios esenciales de YouTube, Google Auth y reproducción de video
+            if (host == "m.youtube.com" ||
+                host == "www.youtube.com" ||
+                host == "youtube.com" ||
+                host.contains("googlevideo.com") ||
+                host.contains("accounts.google.com")
+            ) {
+                return false
+            }
+
+            if (!isLoaded) return false
+
             var isHostBlocked = hostCache[host]
             if (isHostBlocked == null) {
                 isHostBlocked = isHostAd(host)
